@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Timesheet } from '@/lib/types/database.types'
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
 import TimesheetForm from './TimesheetForm'
 
 export type DrawerState =
@@ -17,52 +21,87 @@ interface TimesheetDrawerProps {
 }
 
 export default function TimesheetDrawer({ state, onClose, onSuccess }: TimesheetDrawerProps) {
-  const [timesheet, setTimesheet] = useState<Timesheet | undefined>(undefined)
-  const [fetching, setFetching] = useState(false)
+  const [timesheet, setTimesheet]   = useState<Timesheet | undefined>(undefined)
+  const [fetching, setFetching]     = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
-  // When opened in edit mode, fetch the timesheet
+  // M-2: depend only on the id, not the entire state object reference
+  const editId = state.open && state.mode === 'edit' ? state.timesheetId : null
+
   useEffect(() => {
-    if (!state.open || state.mode !== 'edit') {
+    if (!editId) {
       setTimesheet(undefined)
+      setFetchError(null)
       return
     }
+
+    let cancelled = false
     setFetching(true)
-    const supabase = createClient()
-    supabase
+    setFetchError(null)
+
+    createClient()
       .from('timesheets')
       .select('*')
-      .eq('id', state.timesheetId)
+      .eq('id', editId)
       .single()
-      .then(({ data }) => {
-        setTimesheet((data as unknown as Timesheet | null) ?? undefined)
+      .then(({ data, error }) => {
+        if (cancelled) return
         setFetching(false)
+        if (error || !data) {
+          // C-3: surface the error instead of silently showing blank form
+          setFetchError('Não foi possível carregar o apontamento. Tente novamente.')
+          return
+        }
+        setTimesheet(data as unknown as Timesheet)
       })
-  }, [state])
 
-  const isOpen = state.open
+    return () => { cancelled = true }
+  }, [editId])
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className={[
-          'fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] transition-opacity duration-300',
-          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
-        ].join(' ')}
-        onClick={onClose}
-      />
-
-      {/* Drawer panel */}
-      <div
-        className={[
-          'fixed top-0 right-0 z-50 h-screen w-full max-w-lg bg-white shadow-2xl',
-          'transform transition-transform duration-300 ease-in-out flex flex-col',
-          isOpen ? 'translate-x-0' : 'translate-x-full',
-        ].join(' ')}
-      >
+    <Sheet open={state.open} onOpenChange={open => { if (!open) onClose() }}>
+      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col gap-0">
         {!state.open ? null : fetching ? (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            <div className="h-6 w-6 rounded-full border-2 border-[#3730A3] border-t-transparent animate-spin" />
+          /* Loading skeleton */
+          <div className="p-6 space-y-4">
+            <SheetHeader>
+              <SheetTitle>Carregando apontamento...</SheetTitle>
+            </SheetHeader>
+            <div className="space-y-3 mt-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <div className="grid grid-cols-3 gap-3">
+                <Skeleton className="h-10" />
+                <Skeleton className="h-10" />
+                <Skeleton className="h-10" />
+              </div>
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          </div>
+        ) : fetchError ? (
+          /* C-3: Error state */
+          <div className="p-6 flex flex-col gap-4">
+            <SheetHeader>
+              <SheetTitle>Erro ao carregar</SheetTitle>
+            </SheetHeader>
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+              {fetchError}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={onClose}
+                className="flex-1 rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted transition"
+              >
+                Fechar
+              </button>
+              <button
+                onClick={() => { setFetchError(null); setFetching(true) }}
+                className="flex-1 rounded-md bg-[#3730A3] px-4 py-2 text-sm font-medium text-white hover:bg-[#312E81] transition"
+              >
+                Tentar novamente
+              </button>
+            </div>
           </div>
         ) : (
           <TimesheetForm
@@ -73,7 +112,7 @@ export default function TimesheetDrawer({ state, onClose, onSuccess }: Timesheet
             onClose={onClose}
           />
         )}
-      </div>
-    </>
+      </SheetContent>
+    </Sheet>
   )
 }

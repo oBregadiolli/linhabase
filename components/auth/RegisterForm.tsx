@@ -27,6 +27,7 @@ export default function RegisterForm() {
     if (!/[a-z]/.test(password)) e.password = 'A senha deve conter ao menos 1 letra minúscula'
     if (!/[0-9]/.test(password)) e.password = 'A senha deve conter ao menos 1 número'
     if (!/[^A-Za-z0-9]/.test(password)) e.password = 'A senha deve conter ao menos 1 caracter especial'
+    if (!accepted) e.accepted = 'Aceite os termos de uso para continuar'
     return e
   }
 

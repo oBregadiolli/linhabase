@@ -29,6 +29,7 @@ export default function PeriodNavigator({
         <button
           onClick={onPrev}
           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition"
+          aria-label="Período anterior"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -40,6 +41,7 @@ export default function PeriodNavigator({
         <button
           onClick={onNext}
           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition"
+          aria-label="Próximo período"
         >
           <ChevronRight className="h-5 w-5" />
         </button>

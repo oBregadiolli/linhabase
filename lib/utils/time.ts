@@ -15,7 +15,11 @@ export function formatDatePtBr(dateStr: string): string {
 }
 
 export function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10)
+  // Use local date components to avoid UTC offset shifting the day
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 export function addDays(date: Date, n: number): Date {
@@ -104,11 +108,3 @@ export function statusLabel(status: string): string {
   return map[status] ?? status
 }
 
-export function statusClass(status: string): string {
-  const map: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-600',
-    submitted: 'bg-blue-100 text-blue-700',
-    approved: 'bg-green-100 text-green-700',
-  }
-  return map[status] ?? 'bg-gray-100 text-gray-600'
-}

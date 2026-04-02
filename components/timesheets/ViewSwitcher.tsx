@@ -24,10 +24,10 @@ export default function ViewSwitcher({ view, onViewChange }: ViewSwitcherProps) 
           key={key}
           onClick={() => onViewChange(key)}
           className={[
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition',
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 select-none',
             view === key
-              ? 'bg-white text-[#3730A3] shadow-sm'
-              : 'text-gray-500 hover:text-gray-700',
+              ? 'bg-white text-[#3730A3] shadow-sm active:bg-indigo-50 active:scale-[0.97]'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-white/60 active:bg-gray-200 active:scale-[0.97]',
           ].join(' ')}
         >
           <Icon className="h-4 w-4" />

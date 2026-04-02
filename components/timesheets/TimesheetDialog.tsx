@@ -4,28 +4,27 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Timesheet } from '@/lib/types/database.types'
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
-} from '@/components/ui/sheet'
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import TimesheetForm from './TimesheetForm'
 
-export type DrawerState =
+export type DialogState =
   | { open: false }
-  | { open: true; mode: 'create'; defaultDate?: string }
+  | { open: true; mode: 'create'; defaultDate?: string; defaultStartTime?: string }
   | { open: true; mode: 'edit'; timesheetId: string }
 
-interface TimesheetDrawerProps {
-  state: DrawerState
+interface TimesheetDialogProps {
+  state: DialogState
   onClose: () => void
   onSuccess: () => void
 }
 
-export default function TimesheetDrawer({ state, onClose, onSuccess }: TimesheetDrawerProps) {
+export default function TimesheetDialog({ state, onClose, onSuccess }: TimesheetDialogProps) {
   const [timesheet, setTimesheet]   = useState<Timesheet | undefined>(undefined)
   const [fetching, setFetching]     = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
-  // M-2: depend only on the id, not the entire state object reference
   const editId = state.open && state.mode === 'edit' ? state.timesheetId : null
 
   useEffect(() => {
@@ -48,7 +47,6 @@ export default function TimesheetDrawer({ state, onClose, onSuccess }: Timesheet
         if (cancelled) return
         setFetching(false)
         if (error || !data) {
-          // C-3: surface the error instead of silently showing blank form
           setFetchError('Não foi possível carregar o apontamento. Tente novamente.')
           return
         }
@@ -59,14 +57,17 @@ export default function TimesheetDrawer({ state, onClose, onSuccess }: Timesheet
   }, [editId])
 
   return (
-    <Sheet open={state.open} onOpenChange={open => { if (!open) onClose() }}>
-      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col gap-0">
+    <Dialog open={state.open} onOpenChange={open => { if (!open) onClose() }}>
+      <DialogContent className="sm:max-w-[520px] p-0 gap-0 overflow-hidden">
         {!state.open ? null : fetching ? (
           /* Loading skeleton */
           <div className="p-6 space-y-4">
-            <SheetHeader>
-              <SheetTitle>Carregando apontamento...</SheetTitle>
-            </SheetHeader>
+            <DialogHeader>
+              <DialogTitle>Carregando apontamento...</DialogTitle>
+              <DialogDescription className="sr-only">
+                Aguarde enquanto o apontamento é carregado
+              </DialogDescription>
+            </DialogHeader>
             <div className="space-y-3 mt-4">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -80,11 +81,14 @@ export default function TimesheetDrawer({ state, onClose, onSuccess }: Timesheet
             </div>
           </div>
         ) : fetchError ? (
-          /* C-3: Error state */
+          /* Error state */
           <div className="p-6 flex flex-col gap-4">
-            <SheetHeader>
-              <SheetTitle>Erro ao carregar</SheetTitle>
-            </SheetHeader>
+            <DialogHeader>
+              <DialogTitle>Erro ao carregar</DialogTitle>
+              <DialogDescription className="sr-only">
+                Ocorreu um erro ao carregar o apontamento
+              </DialogDescription>
+            </DialogHeader>
             <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
               {fetchError}
             </div>
@@ -107,12 +111,13 @@ export default function TimesheetDrawer({ state, onClose, onSuccess }: Timesheet
           <TimesheetForm
             mode={state.mode}
             defaultDate={state.mode === 'create' ? state.defaultDate : undefined}
+            defaultStartTime={state.mode === 'create' ? state.defaultStartTime : undefined}
             timesheet={state.mode === 'edit' ? timesheet : undefined}
             onSuccess={onSuccess}
             onClose={onClose}
           />
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }

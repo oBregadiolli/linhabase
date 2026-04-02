@@ -10,9 +10,9 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name')
+    .select('name, email')
     .eq('id', user.id)
-    .maybeSingle() as { data: { name: string } | null }
+    .maybeSingle() as { data: { name: string; email: string } | null }
 
   return (
     <Suspense fallback={
@@ -20,7 +20,10 @@ export default async function DashboardPage() {
         <div className="h-8 w-8 rounded-full border-2 border-[#3730A3] border-t-transparent animate-spin" />
       </div>
     }>
-      <DashboardClient userName={profile?.name || user.email || ''} />
+      <DashboardClient
+        userName={profile?.name || user.email || ''}
+        userEmail={profile?.email || user.email || ''}
+      />
     </Suspense>
   )
 }

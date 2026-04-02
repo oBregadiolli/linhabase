@@ -28,13 +28,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Save, Trash2, Loader2, Timer } from "lucide-react";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Save, Trash2, Loader2, Timer, Clock } from "lucide-react";
 import WarningHourConflict from "./WarningHourConflict";
 
 interface TimesheetFormProps {
   mode: "create" | "edit";
   defaultDate?: string;
+  defaultStartTime?: string;
   timesheet?: Timesheet;
   onSuccess: () => void;
   onClose: () => void;
@@ -57,9 +58,26 @@ function fmtTime(t: string) {
   return t.slice(0, 5);
 }
 
+function fmtTimestamp(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function addMinutesToTime(t: string, min: number): string {
+  const total = timeToMinutes(t) + min;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 export default function TimesheetForm({
   mode,
   defaultDate,
+  defaultStartTime,
   timesheet,
   onSuccess,
   onClose,
@@ -67,12 +85,10 @@ export default function TimesheetForm({
   const today = new Date().toISOString().slice(0, 10);
 
   const [date, setDate] = useState(timesheet?.date ?? defaultDate ?? today);
-  const [startTime, setStartTime] = useState(
-    timesheet?.start_time.slice(0, 5) ?? "09:00",
-  );
-  const [endTime, setEndTime] = useState(
-    timesheet?.end_time.slice(0, 5) ?? "18:00",
-  );
+  const initialStart = timesheet?.start_time.slice(0, 5) ?? defaultStartTime ?? "09:00";
+  const initialEnd = timesheet?.end_time.slice(0, 5) ?? (defaultStartTime ? addMinutesToTime(defaultStartTime, 60) : "18:00");
+  const [startTime, setStartTime] = useState(initialStart);
+  const [endTime, setEndTime] = useState(initialEnd);
   const [project, setProject] = useState(timesheet?.project ?? "");
   const [description, setDescription] = useState(timesheet?.description ?? "");
   const [status, setStatus] = useState<"draft" | "submitted" | "approved">(
@@ -270,19 +286,19 @@ export default function TimesheetForm({
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="flex flex-col h-full">
+      <form onSubmit={handleSubmit} className="flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="px-6 py-5">
-          <SheetHeader>
-            <SheetTitle className="text-base font-bold text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground">
               {mode === "create" ? "Novo Apontamento" : "Editar Apontamento"}
-            </SheetTitle>
+            </DialogTitle>
             <p className="text-sm text-muted-foreground">
               {mode === "create"
                 ? "Registre as horas trabalhadas"
                 : "Atualize os dados do apontamento"}
             </p>
-          </SheetHeader>
+          </DialogHeader>
         </div>
 
         <Separator />
@@ -450,7 +466,23 @@ export default function TimesheetForm({
         <Separator />
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-muted/30 flex items-center gap-2">
+        <div className="px-6 py-4 bg-muted/30 flex flex-col gap-3">
+          {/* Audit timestamps – only in edit mode */}
+          {mode === "edit" && timesheet && (
+            <div className="flex items-center gap-4 text-xs text-muted-foreground border-b border-border pb-3">
+              <span className="flex items-center gap-1.5">
+                <Clock className="h-3 w-3 shrink-0" />
+                <span>Criado em {fmtTimestamp(timesheet.created_at)}</span>
+              </span>
+              {timesheet.updated_at !== timesheet.created_at && (
+                <span className="flex items-center gap-1.5">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  <span>Atualizado em {fmtTimestamp(timesheet.updated_at)}</span>
+                </span>
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
           {mode === "edit" && (
             <Button
               type="button"
@@ -489,6 +521,7 @@ export default function TimesheetForm({
               </span>
             </Button>
           </div>
+        </div>
         </div>
       </form>
 

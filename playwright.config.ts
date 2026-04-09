@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 import path from 'path'
 
-const authFile = path.join(__dirname, 'tests', '.auth', 'user.json')
+// Storage state paths for different user profiles
+const ADMIN_AUTH = path.join(__dirname, 'tests', '.auth', 'admin.json')
+const MEMBER_AUTH = path.join(__dirname, 'tests', '.auth', 'member.json')
 
 export default defineConfig({
   testDir: './tests',
@@ -9,29 +11,59 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+
+  reporter: [
+    ['html'],
+    ['list'],
+  ],
 
   use: {
     baseURL: 'http://localhost:3000',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    video: 'on-first-retry',
   },
 
   projects: [
-    // Setup: faz login e salva a sessão
+    // ── Auth Setup ─────────────────────────────────────────
     {
-      name: 'setup',
-      testMatch: /auth\.setup\.ts/,
+      name: 'auth-admin',
+      testMatch: /auth\.admin\.setup\.ts/,
+    },
+    {
+      name: 'auth-member',
+      testMatch: /auth\.member\.setup\.ts/,
     },
 
-    // Testes que precisam de autenticação
+    // ── Admin tests (logged in as admin) ───────────────────
     {
-      name: 'chromium',
+      name: 'admin',
+      testDir: './tests/admin',
       use: {
         ...devices['Desktop Chrome'],
-        storageState: authFile,
+        storageState: ADMIN_AUTH,
       },
-      dependencies: ['setup'],
+      dependencies: ['auth-admin'],
+    },
+
+    // ── Member tests (logged in as member) ─────────────────
+    {
+      name: 'member',
+      testDir: './tests/member',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: MEMBER_AUTH,
+      },
+      dependencies: ['auth-member'],
+    },
+
+    // ── Public tests (no authentication) ───────────────────
+    {
+      name: 'public',
+      testDir: './tests/public',
+      use: {
+        ...devices['Desktop Chrome'],
+      },
     },
   ],
 
@@ -40,6 +72,6 @@ export default defineConfig({
     command: 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: true,
-    timeout: 30_000,
+    timeout: 60_000,
   },
 })

@@ -25,6 +25,7 @@ export default function TimesheetDialog({ state, onClose, onSuccess }: Timesheet
   const [fetching, setFetching]     = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [projects, setProjects]     = useState<Project[]>([])
+  const [companyId, setCompanyId]   = useState<string | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
 
@@ -59,6 +60,7 @@ export default function TimesheetDialog({ state, onClose, onSuccess }: Timesheet
 
       if (!cancelled && projectList) {
         setProjects(projectList as Project[])
+        setCompanyId(membership.company_id)
       }
     }
 
@@ -153,6 +155,7 @@ export default function TimesheetDialog({ state, onClose, onSuccess }: Timesheet
             defaultStartTime={state.mode === 'create' ? state.defaultStartTime : undefined}
             timesheet={state.mode === 'edit' ? timesheet : undefined}
             projects={projects}
+            companyId={companyId}
             onSuccess={onSuccess}
             onClose={onClose}
           />

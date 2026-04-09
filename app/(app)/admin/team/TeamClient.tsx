@@ -17,9 +17,11 @@ interface TeamClientProps {
   members: EnrichedMember[]
   pendingInvitations: Invitation[]
   revokedInvitations: Invitation[]
+  /** When true, skip the outer wrapper & topbar (rendered by AdminShell) */
+  embedded?: boolean
 }
 
-export default function TeamClient({ companyName, members, pendingInvitations, revokedInvitations }: TeamClientProps) {
+export default function TeamClient({ companyName, members, pendingInvitations, revokedInvitations, embedded }: TeamClientProps) {
   const router = useRouter()
   const [showInviteForm, setShowInviteForm] = useState(false)
 
@@ -32,10 +34,11 @@ export default function TeamClient({ companyName, members, pendingInvitations, r
   const expiredInvitations = pendingInvitations.filter(inv => new Date(inv.expires_at) < new Date())
 
   return (
-    <div className="flex h-screen bg-[#F3F4F6] overflow-hidden">
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+    <div className={embedded ? 'flex flex-col flex-1 min-w-0 overflow-hidden' : 'flex h-screen bg-[#F3F4F6] overflow-hidden'}>
+      <div className={embedded ? 'flex flex-col flex-1 min-w-0 overflow-hidden' : 'flex flex-col flex-1 min-w-0 overflow-hidden'}>
 
-        {/* Topbar */}
+        {/* Topbar — hidden when embedded in AdminShell */}
+        {!embedded && (
         <header className="shrink-0 flex items-center justify-between gap-4 bg-white border-b border-gray-200 px-6 h-14">
           <div className="flex items-center gap-3">
             <a
@@ -63,13 +66,27 @@ export default function TeamClient({ companyName, members, pendingInvitations, r
             <div className="w-px h-5 bg-gray-200 mx-1" />
             <button
               onClick={() => setShowInviteForm(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#3730A3] px-3.5 py-2 text-sm font-semibold text-white hover:bg-[#312E81] transition-colors duration-150"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#3730A3] px-3.5 py-2 text-sm font-semibold text-white hover:bg-[#312E81] transition-colors duration-150 cursor-pointer"
             >
               <UserPlus className="h-4 w-4" />
               <span className="hidden sm:inline">Convidar</span>
             </button>
           </div>
         </header>
+        )}
+
+        {/* Invite button when embedded (topbar handled by AdminShell) */}
+        {embedded && (
+          <div className="shrink-0 flex items-center justify-end bg-white border-b border-gray-100 px-6 py-2">
+            <button
+              onClick={() => setShowInviteForm(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#3730A3] px-3.5 py-2 text-sm font-semibold text-white hover:bg-[#312E81] transition-colors duration-150 cursor-pointer"
+            >
+              <UserPlus className="h-4 w-4" />
+              Convidar
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto">

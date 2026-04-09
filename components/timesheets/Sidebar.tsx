@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { usePathname } from 'next/navigation'
-import { ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight, Shield, Users } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { usePathname, useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight, Shield, Users, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
   userName: string
   userEmail?: string
+  avatarUrl?: string | null
   isAdmin?: boolean
 }
 
@@ -19,9 +21,12 @@ function initials(name: string): string {
     .join('')
 }
 
-export default function Sidebar({ userName, userEmail, isAdmin }: SidebarProps) {
+export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const currentTab = searchParams.get('tab') || ''
 
   const navItems = [
     {
@@ -32,22 +37,42 @@ export default function Sidebar({ userName, userEmail, isAdmin }: SidebarProps) 
     },
   ]
 
+  const isAdminPage = pathname === '/admin' || pathname.startsWith('/admin')
+
   const adminItems = isAdmin
     ? [
         {
           label: 'Apontamentos',
-          href: '/admin/timesheets',
+          tab: 'timesheets',
+          href: '/admin?tab=timesheets',
           icon: ClipboardList,
-          active: pathname.startsWith('/admin/timesheets'),
+          active: isAdminPage && (currentTab === 'timesheets' || !currentTab),
         },
         {
           label: 'Equipe',
-          href: '/admin/team',
+          tab: 'team',
+          href: '/admin?tab=team',
           icon: Users,
-          active: pathname.startsWith('/admin/team'),
+          active: isAdminPage && currentTab === 'team',
+        },
+        {
+          label: 'Projetos',
+          tab: 'projects',
+          href: '/admin?tab=projects',
+          icon: FolderOpen,
+          active: isAdminPage && currentTab === 'projects',
         },
       ]
     : []
+
+  // SPA-like tab switch: if already on /admin, just replace the query param
+  const handleAdminClick = useCallback((tab: string, href: string, e: React.MouseEvent) => {
+    if (isAdminPage) {
+      e.preventDefault()
+      router.replace(`/admin?tab=${tab}`, { scroll: false })
+    }
+    // If NOT on admin page, let the Link navigate normally
+  }, [isAdminPage, router])
 
   return (
     <aside
@@ -90,7 +115,7 @@ export default function Sidebar({ userName, userEmail, isAdmin }: SidebarProps) 
         )}
 
         {navItems.map(({ label, href, icon: Icon, active }) => (
-          <a
+          <Link
             key={href}
             href={href}
             className={cn(
@@ -104,7 +129,7 @@ export default function Sidebar({ userName, userEmail, isAdmin }: SidebarProps) 
           >
             <Icon className={cn('h-4.5 w-4.5 shrink-0', active ? 'text-[#3730A3]' : 'text-gray-400')} />
             {!collapsed && <span className="truncate">{label}</span>}
-          </a>
+          </Link>
         ))}
 
         {/* Admin section — only for admins */}
@@ -116,10 +141,13 @@ export default function Sidebar({ userName, userEmail, isAdmin }: SidebarProps) 
                 Administração
               </p>
             )}
-            {adminItems.map(({ label, href, icon: Icon, active }) => (
-              <a
+            {adminItems.map(({ label, tab, href, icon: Icon, active }) => (
+              <Link
                 key={href}
                 href={href}
+                replace
+                scroll={false}
+                onClick={(e) => handleAdminClick(tab, href, e)}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors duration-150',
                   active
@@ -131,7 +159,7 @@ export default function Sidebar({ userName, userEmail, isAdmin }: SidebarProps) 
               >
                 <Icon className={cn('h-4.5 w-4.5 shrink-0', active ? 'text-[#3730A3]' : 'text-gray-400')} />
                 {!collapsed && <span className="truncate">{label}</span>}
-              </a>
+              </Link>
             ))}
           </>
         )}
@@ -145,25 +173,20 @@ export default function Sidebar({ userName, userEmail, isAdmin }: SidebarProps) 
             Sistema
           </p>
         )}
-        <button
-          disabled
+        <Link
+          href="/settings"
           className={cn(
-            'w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium opacity-50 cursor-not-allowed',
-            'text-gray-400',
+            'flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors duration-150',
+            pathname === '/settings'
+              ? 'bg-[#EEF2FF] text-[#3730A3]'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900',
             collapsed && 'justify-center px-0',
           )}
-          title={collapsed ? 'Configurações (em breve)' : undefined}
+          title={collapsed ? 'Configurações' : undefined}
         >
-          <Settings className="h-4.5 w-4.5 shrink-0 text-gray-400" />
-          {!collapsed && (
-            <span className="truncate flex items-center gap-2">
-              Configurações
-              <span className="text-[10px] bg-gray-100 text-gray-400 rounded px-1.5 py-0.5 font-semibold tracking-wide">
-                Em breve
-              </span>
-            </span>
-          )}
-        </button>
+          <Settings className={cn('h-4.5 w-4.5 shrink-0', pathname === '/settings' ? 'text-[#3730A3]' : 'text-gray-400')} />
+          {!collapsed && <span className="truncate">Configurações</span>}
+        </Link>
       </nav>
 
       {/* ── Profile card ──────────────────────────────── */}
@@ -174,16 +197,24 @@ export default function Sidebar({ userName, userEmail, isAdmin }: SidebarProps) 
             <button
               type="submit"
               title={`Sair (${userName})`}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-[#3730A3] text-white text-xs font-bold hover:opacity-80 transition-opacity"
+              className="flex h-8 w-8 items-center justify-center rounded-full overflow-hidden bg-[#3730A3] text-white text-xs font-bold hover:opacity-80 transition-opacity"
             >
-              {initials(userName)}
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={userName} className="h-8 w-8 object-cover" />
+              ) : (
+                initials(userName)
+              )}
             </button>
           </form>
         ) : (
           /* Expanded: full card */
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-full bg-[#3730A3] flex items-center justify-center text-white text-xs font-bold shrink-0">
-              {initials(userName)}
+            <div className="h-8 w-8 rounded-full overflow-hidden bg-[#3730A3] flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={userName} className="h-8 w-8 object-cover" />
+              ) : (
+                initials(userName)
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-800 truncate">{userName}</p>

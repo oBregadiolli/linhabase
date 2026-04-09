@@ -13,8 +13,11 @@ export default function RegisterForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = sanitizeRedirectTo(searchParams.get('redirectTo'))
+  const invitedEmail = searchParams.get('email') || ''
+  const isInvite = !!invitedEmail
+
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(invitedEmail)
   const [password, setPassword] = useState('')
   const [accepted, setAccepted] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -98,15 +101,23 @@ export default function RegisterForm() {
         label="E-mail de acesso"
         type="email"
         value={email}
-        onChange={e => setEmail(e.target.value)}
+        onChange={isInvite ? undefined : (e => setEmail(e.target.value))}
         placeholder="seu@email.com"
         autoComplete="email"
+        readOnly={isInvite}
+        tabIndex={isInvite ? -1 : undefined}
+        style={isInvite ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed', opacity: 0.7 } : undefined}
         error={errors.email}
         icon={
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         }
+        rightIcon={isInvite ? (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Email definido pelo convite">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        ) : undefined}
       />
 
       <div className="space-y-2">

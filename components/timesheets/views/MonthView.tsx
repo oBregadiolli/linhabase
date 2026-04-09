@@ -2,10 +2,11 @@
 
 import { useCallback } from 'react'
 import type { Timesheet } from '@/lib/types/database.types'
-import { isoDate, isSameDay, addDays, startOfMonth, endOfMonth, formatDuration, getProjectColor } from '@/lib/utils/time'
+import { isoDate, isSameDay, addDays, startOfMonth, endOfMonth, formatDuration, getProjectColor, resolveProjectName, type ProjectMap } from '@/lib/utils/time'
 
 interface MonthViewProps {
   timesheets: Timesheet[]
+  projectMap: ProjectMap
   currentDate: Date
   onNewForDate: (date: Date) => void
   onEdit: (id: string) => void
@@ -17,7 +18,7 @@ const WEEK_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
 
 
-export default function MonthView({ timesheets, currentDate, onNewForDate, onEdit, onDayClick, onSuccess }: MonthViewProps) {
+export default function MonthView({ timesheets, projectMap, currentDate, onNewForDate, onEdit, onDayClick, onSuccess }: MonthViewProps) {
   const today    = new Date()
   const firstDay = startOfMonth(currentDate)
   const lastDay  = endOfMonth(currentDate)
@@ -67,7 +68,8 @@ export default function MonthView({ timesheets, currentDate, onNewForDate, onEdi
 
                 <div className="flex flex-col gap-0.5 overflow-hidden">
                   {dayTs.slice(0, 3).map(t => {
-                    const c = getProjectColor(t.project)
+                    const pName = resolveProjectName(t.project_id, projectMap)
+                    const c = getProjectColor(pName)
                     return (
                       <button
                         key={t.id}
@@ -75,7 +77,7 @@ export default function MonthView({ timesheets, currentDate, onNewForDate, onEdi
                         className="block w-full text-left rounded px-1.5 py-0.5 text-xs font-medium truncate transition opacity-90 hover:opacity-100"
                         style={{ backgroundColor: c.bg, color: c.text, borderLeft: `3px solid ${c.border}` }}
                       >
-                        {t.project}
+                        {pName}
                       </button>
                     )
                   })}

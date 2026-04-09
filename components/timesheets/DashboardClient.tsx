@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Timesheet } from '@/lib/types/database.types'
+import type { Timesheet, Project } from '@/lib/types/database.types'
 import { isoDate, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from '@/lib/utils/time'
 
 import ViewSwitcher, { type View } from './ViewSwitcher'
@@ -13,12 +13,13 @@ import TableView from './views/TableView'
 import MonthView from './views/MonthView'
 import WeekView from './views/WeekView'
 import DayView from './views/DayView'
+import QuickXYView from './views/QuickXYView'
 import TimesheetDialog, { type DialogState } from './TimesheetDialog'
 import { DashboardSkeleton, TableSkeleton, TimelineSkeleton } from './DashboardSkeletons'
 import { Plus } from 'lucide-react'
 import { submitTimesheet } from '@/app/(app)/dashboard/actions'
 
-const VALID_VIEWS: View[] = ['table', 'month', 'week', 'day']
+const VALID_VIEWS: View[] = ['table', 'month', 'week', 'day', 'xy']
 
 function getPeriodRange(view: View, date: Date): { start: Date; end: Date } {
   if (view === 'month' || view === 'table') return { start: startOfMonth(date), end: endOfMonth(date) }
@@ -30,10 +31,11 @@ interface DashboardClientProps {
   userId: string
   userName: string
   userEmail?: string
+  avatarUrl?: string | null
   isAdmin?: boolean
 }
 
-export default function DashboardClient({ userId, userName, userEmail, isAdmin }: DashboardClientProps) {
+export default function DashboardClient({ userId, userName, userEmail, avatarUrl, isAdmin }: DashboardClientProps) {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()
@@ -110,6 +112,37 @@ export default function DashboardClient({ userId, userName, userEmail, isAdmin }
   const fetchGenRef                 = useRef(0)
   const supabase = useMemo(() => createClient(), [])
 
+  // ── Company projects (for project_id → name resolution) ───────────────────
+  const [projects, setProjects] = useState<Project[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadProjects() {
+      const { data: membership } = await supabase
+        .from('company_members')
+        .select('company_id')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle()
+      if (!membership || cancelled) return
+      const { data } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('company_id', membership.company_id)
+        .order('name', { ascending: true })
+      if (!cancelled && data) setProjects(data as Project[])
+    }
+    loadProjects()
+    return () => { cancelled = true }
+  }, [supabase, userId])
+
+  const projectMap = useMemo(() => {
+    const map = new Map<string, { name: string; color: string | null }>()
+    for (const p of projects) map.set(p.id, { name: p.name, color: p.color })
+    return map
+  }, [projects])
+
   const fetchTimesheets = useCallback(async () => {
     const gen = ++fetchGenRef.current
     setLoading(true)
@@ -155,7 +188,7 @@ export default function DashboardClient({ userId, userName, userEmail, isAdmin }
       {/* Root layout: sidebar + main */}
       <div className="flex h-screen bg-[#F3F4F6] overflow-hidden">
 
-        <Sidebar userName={userName} userEmail={userEmail} isAdmin={isAdmin} />
+        <Sidebar userName={userName} userEmail={userEmail} avatarUrl={avatarUrl} isAdmin={isAdmin} />
 
         {/* Main area */}
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -163,13 +196,15 @@ export default function DashboardClient({ userId, userName, userEmail, isAdmin }
           {/* Top bar */}
           <header className="shrink-0 flex items-center justify-between gap-4 bg-white border-b border-gray-200 px-6 h-14">
             <ViewSwitcher view={view} onViewChange={setView} />
-            <button
-              onClick={() => openNew()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#3730A3] px-3.5 py-2 text-sm font-semibold text-white hover:bg-[#312E81] transition-colors duration-150"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Novo Apontamento</span>
-            </button>
+            {view !== 'xy' && (
+              <button
+                onClick={() => openNew()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#3730A3] px-3.5 py-2 text-sm font-semibold text-white hover:bg-[#312E81] transition-colors duration-150"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Novo Apontamento</span>
+              </button>
+            )}
           </header>
 
           {/* Scrollable content */}
@@ -180,15 +215,17 @@ export default function DashboardClient({ userId, userName, userEmail, isAdmin }
                 <div className="h-full w-1/3 bg-[#3730A3] animate-[slide_1.2s_ease-in-out_infinite]" />
               </div>
             )}
-            <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-4">
-              <PeriodNavigator
-                view={view}
-                currentDate={currentDate}
-                totalMinutes={totalMinutes}
-                onPrev={() => navigate('prev')}
-                onNext={() => navigate('next')}
-                onToday={() => setDate(new Date())}
-              />
+            <div className={view === 'xy' ? 'flex-1 flex flex-col min-w-0 overflow-auto' : 'max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-4'}>
+              {view !== 'xy' && (
+                <PeriodNavigator
+                  view={view}
+                  currentDate={currentDate}
+                  totalMinutes={totalMinutes}
+                  onPrev={() => navigate('prev')}
+                  onNext={() => navigate('next')}
+                  onToday={() => setDate(new Date())}
+                />
+              )}
 
               {fetchError && !loading && (
                 <div className="flex items-center justify-between rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -208,11 +245,12 @@ export default function DashboardClient({ userId, userName, userEmail, isAdmin }
               ) : (
                 <>
                   {view === 'table' && (
-                    <TableView timesheets={timesheets} onEdit={openEdit} onDelete={handleDelete} onSubmit={handleSubmit} />
+                    <TableView timesheets={timesheets} projectMap={projectMap} onEdit={openEdit} onDelete={handleDelete} onSubmit={handleSubmit} />
                   )}
                   {view === 'month' && (
                     <MonthView
                       timesheets={timesheets}
+                      projectMap={projectMap}
                       currentDate={currentDate}
                       onNewForDate={d => openNew(isoDate(d))}
                       onEdit={openEdit}
@@ -223,6 +261,7 @@ export default function DashboardClient({ userId, userName, userEmail, isAdmin }
                   {view === 'week' && (
                     <WeekView
                       timesheets={timesheets}
+                      projectMap={projectMap}
                       currentDate={currentDate}
                       onEdit={openEdit}
                       onSuccess={fetchTimesheets}
@@ -232,11 +271,22 @@ export default function DashboardClient({ userId, userName, userEmail, isAdmin }
                   {view === 'day' && (
                     <DayView
                       timesheets={timesheets}
+                      projectMap={projectMap}
                       currentDate={currentDate}
                       onNew={() => openNew(isoDate(currentDate))}
                       onEdit={openEdit}
                       onSuccess={fetchTimesheets}
                       onNewForDate={(d, t) => openNew(d, t)}
+                    />
+                  )}
+                  {view === 'xy' && (
+                    <QuickXYView
+                      userId={userId}
+                      projects={projects}
+                      currentDate={currentDate}
+                      onNavigate={navigate}
+                      onTimesheetAdded={fetchTimesheets}
+                      openEditDialog={openEdit}
                     />
                   )}
                 </>

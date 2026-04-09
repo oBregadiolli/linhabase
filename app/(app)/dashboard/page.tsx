@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { isCurrentUserAdmin } from '@/lib/supabase/membership'
+import { isCurrentUserAdmin, getCurrentMembership } from '@/lib/supabase/membership'
 import DashboardClient from '@/components/timesheets/DashboardClient'
 
 export default async function DashboardPage() {
@@ -9,11 +9,15 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // If user has no company, redirect to onboarding
+  const membership = await getCurrentMembership()
+  if (!membership) redirect('/onboarding')
+
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name, email')
+    .select('name, email, avatar_url')
     .eq('id', user.id)
-    .maybeSingle() as { data: { name: string; email: string } | null }
+    .maybeSingle() as { data: { name: string; email: string; avatar_url: string | null } | null }
 
   const isAdmin = await isCurrentUserAdmin()
 
@@ -27,6 +31,7 @@ export default async function DashboardPage() {
         userId={user.id}
         userName={profile?.name || user.email || ''}
         userEmail={profile?.email || user.email || ''}
+        avatarUrl={profile?.avatar_url ?? null}
         isAdmin={isAdmin}
       />
     </Suspense>

@@ -38,13 +38,14 @@ interface TimesheetFormProps {
   defaultStartTime?: string;
   timesheet?: Timesheet;
   projects?: Project[];
+  companyId?: string | null;
   onSuccess: () => void;
   onClose: () => void;
 }
 
 interface ConflictEntry {
   id: string;
-  project: string;
+  project_id: string | null;
   start_time: string;
   end_time: string;
 }
@@ -90,6 +91,7 @@ export default function TimesheetForm({
   defaultStartTime,
   timesheet,
   projects = [],
+  companyId,
   onSuccess,
   onClose,
 }: TimesheetFormProps) {
@@ -105,8 +107,12 @@ export default function TimesheetForm({
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     timesheet?.project_id ?? ""
   );
-  // Fallback text for legacy timesheets without project_id
-  const [projectText, setProjectText] = useState(timesheet?.project ?? "");
+  // Fallback text for companies without registered projects (free-text input)
+  const [projectText, setProjectText] = useState(
+    timesheet?.project_id
+      ? (projects.find(p => p.id === timesheet.project_id)?.name ?? '')
+      : ''
+  );
 
   // Build visible options: active projects + current project if inactive
   const visibleProjects = (() => {
@@ -136,7 +142,7 @@ export default function TimesheetForm({
     (timesheet?.status as "draft" | "submitted" | "approved") ?? "draft";
 
   // Lock: submitted/approved timesheets cannot be edited by the user
-  const isLocked = mode === "edit" && (status === "submitted" || status === "approved");
+  const isLocked = mode === "edit" && status === "approved";
   const [submitting, setSubmitting] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -187,7 +193,7 @@ export default function TimesheetForm({
     // Postgres overlap: existing.start < new.end  AND  existing.end > new.start
     let query = supabase
       .from("timesheets")
-      .select("id, project, start_time, end_time")
+      .select("id, project_id, start_time, end_time")
       .eq("user_id", user.id)
       .eq("date", date)
       .lt("start_time", endTime + ":00") // existing starts before new ends
@@ -204,7 +210,7 @@ export default function TimesheetForm({
       const hit = data[0];
       return {
         id: hit.id,
-        project: hit.project,
+        project_id: hit.project_id,
         start_time: hit.start_time,
         end_time: hit.end_time,
       };
@@ -218,6 +224,7 @@ export default function TimesheetForm({
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
+    setSubmitting(true);
     setLoading(true);
     setConflict(null);
 
@@ -226,6 +233,7 @@ export default function TimesheetForm({
     if (hit) {
       setConflict(hit);
       setLoading(false);
+      setSubmitting(false);
       return;
     }
     // ────────────────────────────────────────────────────────────────────
@@ -246,14 +254,15 @@ export default function TimesheetForm({
         date,
         start_time: startTime,
         end_time: endTime,
-        project: projectName.trim(),
         project_id: selectedProjectId || null,
         description: description.trim() || null,
         status: submitting ? 'submitted' : 'draft',
+        company_id: companyId || null,
       });
       if (error) {
         setErrors({ server: error.message });
         setLoading(false);
+        setSubmitting(false);
         return;
       }
     } else {
@@ -264,7 +273,6 @@ export default function TimesheetForm({
           date,
           start_time: startTime,
           end_time: endTime,
-          project: projectName.trim(),
           project_id: selectedProjectId || null,
           description: description.trim() || null,
           rejection_reason: null,
@@ -273,6 +281,7 @@ export default function TimesheetForm({
       if (error) {
         setErrors({ server: error.message });
         setLoading(false);
+        setSubmitting(false);
         return;
       }
     }
@@ -314,10 +323,10 @@ export default function TimesheetForm({
       const { error } = await supabase.from("timesheets").insert({
         user_id: user.id,
         date, start_time: startTime, end_time: endTime,
-        project: projectName.trim(),
         project_id: selectedProjectId || null,
         description: description.trim() || null,
         status: "draft" as const,
+        company_id: companyId || null,
       });
       if (error) { setErrors({ server: error.message }); setReplacing(false); return; }
     } else {
@@ -326,7 +335,6 @@ export default function TimesheetForm({
         .from("timesheets")
         .update({
           date, start_time: startTime, end_time: endTime,
-          project: projectName.trim(),
           project_id: selectedProjectId || null,
           description: description.trim() || null,
           status,
@@ -368,7 +376,7 @@ export default function TimesheetForm({
           {/* ── Conflict banner ─────────────────────────────────────────── */}
           {conflict && (
             <WarningHourConflict
-              project={conflict.project}
+              project={conflict.project_id ? (projects.find(p => p.id === conflict.project_id)?.name ?? 'Sem projeto') : 'Sem projeto'}
               startTime={conflict.start_time}
               endTime={conflict.end_time}
               onReplace={() => setShowReplaceConfirm(true)}
@@ -550,14 +558,23 @@ export default function TimesheetForm({
                 </SelectContent>
               </Select>
             ) : (
-              /* ── Fallback text input (no projects registered yet) ── */
-              <Input
-                id="ts-project"
-                value={projectText}
-                onChange={(e) => setProjectText(e.target.value)}
-                placeholder="Nome do projeto"
-                className={cn(errors.project && "border-destructive")}
-              />
+              /* ── Empty state: user has no company/projects ── */
+              <div className="space-y-2">
+                <Select disabled>
+                  <SelectTrigger
+                    id="ts-project"
+                    className="w-full opacity-60 cursor-not-allowed"
+                  >
+                    <SelectValue placeholder="Nenhum projeto disponível" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__empty" disabled>Nenhum projeto</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  Você precisa pertencer a uma empresa com projetos cadastrados para registrar apontamentos.
+                </p>
+              </div>
             )}
             {errors.project && (
               <p className="text-xs text-destructive">{errors.project}</p>
@@ -624,42 +641,21 @@ export default function TimesheetForm({
               {isLocked ? "Fechar" : "Cancelar"}
             </Button>
             {!isLocked && (
-              <>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={loading || replacing || !!conflict || submitting}
-                  className="bg-[#3730A3] hover:bg-[#312E81] disabled:opacity-50"
-                  onClick={() => setSubmitting(false)}
-                >
-                  {loading && !submitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  <span className="ml-1.5">
-                    {replacing ? "Substituindo..." : loading && !submitting ? "Verificando..." : "Salvar"}
-                  </span>
-                </Button>
-                {status === "draft" && (
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={loading || replacing || !!conflict || submitting}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
-                    onClick={() => setSubmitting(true)}
-                  >
-                    {loading && submitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <SendHorizonal className="h-4 w-4" />
-                    )}
-                    <span className="ml-1.5">
-                      {loading && submitting ? "Enviando..." : "Salvar e Enviar"}
-                    </span>
-                  </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={loading || replacing || !!conflict || !hasProjects || (hasProjects && !selectedProjectId)}
+                className="bg-[#1D4ED8] hover:bg-[#1e40af] text-white disabled:opacity-50"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <SendHorizonal className="h-4 w-4" />
                 )}
-              </>
+                <span className="ml-1.5">
+                  {replacing ? "Substituindo..." : loading ? "Enviando..." : "Salvar e Enviar"}
+                </span>
+              </Button>
             )}
           </div>
         </div>
@@ -699,7 +695,7 @@ export default function TimesheetForm({
           </AlertDialogHeader>
           <div className="px-6 py-2 space-y-3 text-sm">
             <div className="rounded-md border bg-muted/50 px-3 py-2 font-medium">
-              &ldquo;{conflict?.project}&rdquo; &mdash;{" "}
+              &ldquo;{conflict?.project_id ? (projects.find(p => p.id === conflict.project_id)?.name ?? 'Sem projeto') : 'Sem projeto'}&rdquo; &mdash;{" "}
               {conflict ? fmtTime(conflict.start_time) : ""} às{" "}
               {conflict ? fmtTime(conflict.end_time) : ""}
             </div>

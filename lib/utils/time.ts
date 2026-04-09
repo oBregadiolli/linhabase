@@ -1,3 +1,18 @@
+// ── Project resolution helper ─────────────────────────────────────────
+export type ProjectMap = Map<string, { name: string; color: string | null }>
+
+/** Resolve project name from project_id via the provided map. Fallback for historical data. */
+export function resolveProjectName(
+  projectId: string | null | undefined,
+  projectMap: ProjectMap,
+): string {
+  if (projectId) {
+    const p = projectMap.get(projectId)
+    if (p) return p.name
+  }
+  return 'Sem projeto'
+}
+
 export function formatDuration(minutes: number | null): string {
   if (!minutes || minutes <= 0) return '0h'
   const h = Math.floor(minutes / 60)
@@ -104,6 +119,7 @@ export function statusLabel(status: string): string {
     draft: 'Rascunho',
     submitted: 'Enviado',
     approved: 'Aprovado',
+    rejected: 'Rejeitado',
   }
   return map[status] ?? status
 }

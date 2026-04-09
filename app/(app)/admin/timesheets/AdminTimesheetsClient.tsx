@@ -26,6 +26,8 @@ interface AdminTimesheetsClientProps {
   members: MemberProfile[]
   projects: ProjectSummary[]
   adminName: string
+  /** When true, skip the outer wrapper & topbar (rendered by AdminShell) */
+  embedded?: boolean
 }
 
 type StatusFilter = 'all' | 'draft' | 'submitted' | 'approved'
@@ -37,7 +39,7 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'approved', label: 'Aprovado' },
 ]
 
-export default function AdminTimesheetsClient({ companyName, members, projects, adminName }: AdminTimesheetsClientProps) {
+export default function AdminTimesheetsClient({ companyName, members, projects, adminName, embedded }: AdminTimesheetsClientProps) {
   const supabase = useMemo(() => createClient(), [])
   const fetchGenRef = useRef(0)
 
@@ -64,8 +66,10 @@ export default function AdminTimesheetsClient({ companyName, members, projects, 
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
 
-  const monthStart = startOfMonth(currentDate)
-  const monthEnd = endOfMonth(currentDate)
+  // Memoize with string key to avoid Date reference instability
+  const currentMonthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`
+  const monthStart = useMemo(() => startOfMonth(currentDate), [currentMonthKey])
+  const monthEnd = useMemo(() => endOfMonth(currentDate), [currentMonthKey])
 
   // ── Project lookup map ────────────────────────────────────────
   const projectMap = useMemo(() => {
@@ -79,7 +83,7 @@ export default function AdminTimesheetsClient({ companyName, members, projects, 
       const p = projectMap.get(t.project_id)
       if (p) return { name: p.name, color: p.color }
     }
-    return { name: t.project, color: null }
+    return { name: 'Sem projeto', color: null }
   }
 
   // ── Data fetch ────────────────────────────────────────────────
@@ -210,10 +214,11 @@ export default function AdminTimesheetsClient({ companyName, members, projects, 
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-[#F3F4F6] overflow-hidden">
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+    <div className={embedded ? 'flex flex-col flex-1 min-w-0 overflow-hidden' : 'flex h-screen bg-[#F3F4F6] overflow-hidden'}>
+      <div className={embedded ? 'flex flex-col flex-1 min-w-0 overflow-hidden' : 'flex flex-col flex-1 min-w-0 overflow-hidden'}>
 
-        {/* Topbar */}
+        {/* Topbar — hidden when embedded in AdminShell */}
+        {!embedded && (
         <header className="shrink-0 flex items-center justify-between gap-4 bg-white border-b border-gray-200 px-6 h-14">
           <div className="flex items-center gap-3">
             <a
@@ -240,6 +245,7 @@ export default function AdminTimesheetsClient({ companyName, members, projects, 
             </a>
           </div>
         </header>
+        )}
 
         {/* Scrollable content */}
         <main className="flex-1 overflow-y-auto relative">

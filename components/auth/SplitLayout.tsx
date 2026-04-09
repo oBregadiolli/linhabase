@@ -21,8 +21,8 @@ export default function SplitLayout({ children }: SplitLayoutProps) {
         <div className="text-center max-w-sm">
           <h1 className="text-4xl font-bold text-white mb-4">LinhaBase</h1>
           <p className="text-white/90 text-lg leading-relaxed">
-            <span className="text-[#F59E0B] font-semibold">Orçamentos precisos</span>{' '}
-            e gestão de projetos simplificada para consultores e empresas.
+            <span className="text-[#F59E0B] font-semibold">Apontamento inteligente</span>{' '}
+            e controle de horas simplificado para equipes e projetos.
           </p>
         </div>
       </div>

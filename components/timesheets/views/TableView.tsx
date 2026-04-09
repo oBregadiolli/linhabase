@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { Timesheet } from '@/lib/types/database.types'
-import { formatDatePtBr, formatTime, formatDuration, statusLabel } from '@/lib/utils/time'
+import { formatDatePtBr, formatTime, formatDuration, statusLabel, resolveProjectName, type ProjectMap } from '@/lib/utils/time'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,6 +22,7 @@ function fmtTimestamp(iso: string): string {
 
 interface TableViewProps {
   timesheets: Timesheet[]
+  projectMap: ProjectMap
   onEdit: (id: string) => void
   onDelete: (id: string) => void
   onSubmit?: (id: string) => void
@@ -35,15 +36,16 @@ function statusVariant(status: string): 'default' | 'secondary' | 'outline' | 'd
   return 'outline'
 }
 
-export default function TableView({ timesheets, onEdit, onDelete, onSubmit }: TableViewProps) {
+export default function TableView({ timesheets, projectMap, onEdit, onDelete, onSubmit }: TableViewProps) {
   const [page, setPage]           = useState(1)
   const [search, setSearch]       = useState('')
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [infoId, setInfoId]       = useState<string | null>(null)
 
-  const filtered = timesheets.filter(t =>
-    t.project.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = timesheets.filter(t => {
+    const pName = resolveProjectName(t.project_id, projectMap)
+    return pName.toLowerCase().includes(search.toLowerCase())
+  })
   const total  = filtered.length
   const pages  = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const paged  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -93,7 +95,7 @@ export default function TableView({ timesheets, onEdit, onDelete, onSubmit }: Ta
                 paged.map(t => (
                   <tr key={t.id} className="hover:bg-muted/30 transition-colors duration-150">
                     <td className="px-4 py-3 font-medium whitespace-nowrap tabular-nums">{formatDatePtBr(t.date)}</td>
-                    <td className="px-4 py-3 max-w-[180px] truncate" title={t.project}>{t.project}</td>
+                    <td className="px-4 py-3 max-w-[180px] truncate" title={resolveProjectName(t.project_id, projectMap)}>{resolveProjectName(t.project_id, projectMap)}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap tabular-nums">{formatTime(t.start_time)}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap tabular-nums">{formatTime(t.end_time)}</td>
                     <td className="px-4 py-3 font-medium whitespace-nowrap tabular-nums">{formatDuration(t.duration_minutes)}</td>
@@ -116,7 +118,7 @@ export default function TableView({ timesheets, onEdit, onDelete, onSubmit }: Ta
                           variant="ghost" size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
                           onClick={() => onEdit(t.id)}
-                          aria-label={t.status === 'draft' ? `Editar ${t.project}` : `Ver ${t.project}`}
+                          aria-label={t.status === 'draft' ? `Editar ${resolveProjectName(t.project_id, projectMap)}` : `Ver ${resolveProjectName(t.project_id, projectMap)}`}
                           title={t.status === 'draft' ? 'Editar' : 'Visualizar'}
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -126,7 +128,7 @@ export default function TableView({ timesheets, onEdit, onDelete, onSubmit }: Ta
                             variant="ghost" size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             onClick={() => setConfirmId(t.id)}
-                            aria-label={`Excluir ${t.project}`}
+                            aria-label={`Excluir ${resolveProjectName(t.project_id, projectMap)}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -136,7 +138,7 @@ export default function TableView({ timesheets, onEdit, onDelete, onSubmit }: Ta
                             variant="ghost" size="icon"
                             className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                             onClick={() => onSubmit(t.id)}
-                            aria-label={`Enviar ${t.project}`}
+                            aria-label={`Enviar ${resolveProjectName(t.project_id, projectMap)}`}
                             title="Enviar para aprovação"
                           >
                             <SendHorizonal className="h-3.5 w-3.5" />
@@ -148,7 +150,7 @@ export default function TableView({ timesheets, onEdit, onDelete, onSubmit }: Ta
                             variant="ghost" size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-sky-600 hover:bg-sky-50"
                             onClick={() => setInfoId(infoId === t.id ? null : t.id)}
-                            aria-label={`Informações de ${t.project}`}
+                            aria-label={`Informações de ${resolveProjectName(t.project_id, projectMap)}`}
                           >
                             <Info className="h-3.5 w-3.5" />
                           </Button>
@@ -217,7 +219,7 @@ export default function TableView({ timesheets, onEdit, onDelete, onSubmit }: Ta
             <AlertDialogTitle>Excluir apontamento?</AlertDialogTitle>
             <AlertDialogDescription>
               Isso removerá o registro de{' '}
-              <strong>{confirmTarget?.project}</strong> em{' '}
+              <strong>{confirmTarget ? resolveProjectName(confirmTarget.project_id, projectMap) : ''}</strong> em{' '}
               <strong>{confirmTarget ? formatDatePtBr(confirmTarget.date) : ''}</strong> permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>

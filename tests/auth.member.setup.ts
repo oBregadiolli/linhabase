@@ -1,16 +1,13 @@
 import { test as setup, expect } from '@playwright/test'
 import path from 'path'
 
-const authFile = path.join(__dirname, '.auth', 'user.json')
+const authFile = path.join(__dirname, '.auth', 'member.json')
 
-setup('autenticar usuário de teste', async ({ page }) => {
-  // Credenciais de teste (hardcoded por enquanto — produção usaria env vars)
-  const email = 'bregadiolli.contato@gmail.com'
-  const password = 'ToprakTurco9292@'
+setup('autenticar member E2E', async ({ page }) => {
+  const email = process.env.E2E_MEMBER_EMAIL || 'e2e-member@linhabase.test'
+  const password = process.env.E2E_MEMBER_PASSWORD || 'E2e@Member2026!'
 
   await page.goto('/login')
-
-  // Preenche o formulário de login
   await page.locator('#email').fill(email)
   await page.locator('#password').fill(password)
   await page.locator('button[type="submit"]').click()
@@ -18,6 +15,6 @@ setup('autenticar usuário de teste', async ({ page }) => {
   // Espera o redirect para o dashboard
   await expect(page).toHaveURL(/dashboard/, { timeout: 15_000 })
 
-  // Salva o estado de autenticação para reutilizar nos outros testes
+  // Salva o estado de autenticação
   await page.context().storageState({ path: authFile })
 })

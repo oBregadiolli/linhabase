@@ -1,8 +1,8 @@
 'use client'
 
-import { LayoutList, CalendarDays, CalendarRange, Calendar } from 'lucide-react'
+import { LayoutList, CalendarDays, CalendarRange, Calendar, Grid3X3 } from 'lucide-react'
 
-export type View = 'table' | 'month' | 'week' | 'day'
+export type View = 'table' | 'month' | 'week' | 'day' | 'xy'
 
 interface ViewSwitcherProps {
   view: View
@@ -14,6 +14,7 @@ const VIEWS: { key: View; label: string; Icon: React.ElementType }[] = [
   { key: 'month',  label: 'Mês',     Icon: CalendarDays },
   { key: 'week',   label: 'Semana',  Icon: CalendarRange },
   { key: 'day',    label: 'Dia',     Icon: Calendar },
+  { key: 'xy',     label: 'XY',      Icon: Grid3X3 },
 ]
 
 export default function ViewSwitcher({ view, onViewChange }: ViewSwitcherProps) {

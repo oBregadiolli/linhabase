@@ -16,6 +16,7 @@ import DayView from './views/DayView'
 import TimesheetDialog, { type DialogState } from './TimesheetDialog'
 import { DashboardSkeleton, TableSkeleton, TimelineSkeleton } from './DashboardSkeletons'
 import { Plus } from 'lucide-react'
+import { submitTimesheet } from '@/app/(app)/dashboard/actions'
 
 const VALID_VIEWS: View[] = ['table', 'month', 'week', 'day']
 
@@ -26,11 +27,13 @@ function getPeriodRange(view: View, date: Date): { start: Date; end: Date } {
 }
 
 interface DashboardClientProps {
+  userId: string
   userName: string
   userEmail?: string
+  isAdmin?: boolean
 }
 
-export default function DashboardClient({ userName, userEmail }: DashboardClientProps) {
+export default function DashboardClient({ userId, userName, userEmail, isAdmin }: DashboardClientProps) {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()
@@ -115,6 +118,7 @@ export default function DashboardClient({ userName, userEmail }: DashboardClient
     const { data, error } = await supabase
       .from('timesheets')
       .select('*')
+      .eq('user_id', userId)          // ← explicit: personal dashboard only
       .gte('date', isoDate(start))
       .lte('date', isoDate(end))
       .order('date', { ascending: true })
@@ -124,7 +128,7 @@ export default function DashboardClient({ userName, userEmail }: DashboardClient
     else setTimesheets((data as Timesheet[]) ?? [])
     setLoading(false)
     setInitialLoad(false)
-  }, [view, currentDate, supabase])
+  }, [view, currentDate, supabase, userId])
 
   useEffect(() => { fetchTimesheets() }, [fetchTimesheets])
 
@@ -135,6 +139,15 @@ export default function DashboardClient({ userName, userEmail }: DashboardClient
     setTimesheets(prev => prev.filter(t => t.id !== id))
   }
 
+  async function handleSubmit(id: string) {
+    const result = await submitTimesheet(id)
+    if (result.success) {
+      fetchTimesheets()
+    } else {
+      setFetchError(result.error ?? 'Erro ao enviar apontamento.')
+    }
+  }
+
   const totalMinutes = timesheets.reduce((s, t) => s + (t.duration_minutes ?? 0), 0)
 
   return (
@@ -142,7 +155,7 @@ export default function DashboardClient({ userName, userEmail }: DashboardClient
       {/* Root layout: sidebar + main */}
       <div className="flex h-screen bg-[#F3F4F6] overflow-hidden">
 
-        <Sidebar userName={userName} userEmail={userEmail} />
+        <Sidebar userName={userName} userEmail={userEmail} isAdmin={isAdmin} />
 
         {/* Main area */}
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -195,7 +208,7 @@ export default function DashboardClient({ userName, userEmail }: DashboardClient
               ) : (
                 <>
                   {view === 'table' && (
-                    <TableView timesheets={timesheets} onEdit={openEdit} onDelete={handleDelete} />
+                    <TableView timesheets={timesheets} onEdit={openEdit} onDelete={handleDelete} onSubmit={handleSubmit} />
                   )}
                   {view === 'month' && (
                     <MonthView

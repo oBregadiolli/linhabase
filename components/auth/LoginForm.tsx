@@ -1,14 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import InputField from '@/components/ui/InputField'
 import PasswordField from '@/components/ui/PasswordField'
 import { createClient } from '@/lib/supabase/client'
+import { sanitizeRedirectTo } from '@/lib/utils/url'
 
 export default function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = sanitizeRedirectTo(searchParams.get('redirectTo'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -28,7 +31,7 @@ export default function LoginForm() {
       return
     }
 
-    router.push('/dashboard')
+    router.push(redirectTo)
     router.refresh()
   }
 
@@ -38,7 +41,7 @@ export default function LoginForm() {
         <h2 className="text-2xl font-bold text-gray-800">Boas-Vindas de volta!</h2>
         <p className="text-sm text-gray-500 mt-1">
           Novo aqui?{' '}
-          <Link href="/register" className="text-[#3B82F6] hover:underline font-medium">
+          <Link href={`/register${redirectTo !== '/dashboard' ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ''}`} className="text-[#3B82F6] hover:underline font-medium">
             Crie sua conta
           </Link>
         </p>

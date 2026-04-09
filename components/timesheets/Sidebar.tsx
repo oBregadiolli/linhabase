@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight, Shield, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
   userName: string
   userEmail?: string
+  isAdmin?: boolean
 }
 
 function initials(name: string): string {
@@ -18,7 +19,7 @@ function initials(name: string): string {
     .join('')
 }
 
-export default function Sidebar({ userName, userEmail }: SidebarProps) {
+export default function Sidebar({ userName, userEmail, isAdmin }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
 
@@ -30,6 +31,23 @@ export default function Sidebar({ userName, userEmail }: SidebarProps) {
       active: pathname.startsWith('/dashboard'),
     },
   ]
+
+  const adminItems = isAdmin
+    ? [
+        {
+          label: 'Apontamentos',
+          href: '/admin/timesheets',
+          icon: ClipboardList,
+          active: pathname.startsWith('/admin/timesheets'),
+        },
+        {
+          label: 'Equipe',
+          href: '/admin/team',
+          icon: Users,
+          active: pathname.startsWith('/admin/team'),
+        },
+      ]
+    : []
 
   return (
     <aside
@@ -88,6 +106,35 @@ export default function Sidebar({ userName, userEmail }: SidebarProps) {
             {!collapsed && <span className="truncate">{label}</span>}
           </a>
         ))}
+
+        {/* Admin section — only for admins */}
+        {adminItems.length > 0 && (
+          <>
+            <div className="my-3 border-t border-gray-100" />
+            {!collapsed && (
+              <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                Administração
+              </p>
+            )}
+            {adminItems.map(({ label, href, icon: Icon, active }) => (
+              <a
+                key={href}
+                href={href}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors duration-150',
+                  active
+                    ? 'bg-[#EEF2FF] text-[#3730A3]'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900',
+                  collapsed && 'justify-center px-0',
+                )}
+                title={collapsed ? label : undefined}
+              >
+                <Icon className={cn('h-4.5 w-4.5 shrink-0', active ? 'text-[#3730A3]' : 'text-gray-400')} />
+                {!collapsed && <span className="truncate">{label}</span>}
+              </a>
+            ))}
+          </>
+        )}
 
         {/* Divider */}
         <div className="my-3 border-t border-gray-100" />

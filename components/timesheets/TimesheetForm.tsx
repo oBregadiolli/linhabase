@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Timesheet } from "@/lib/types/database.types";
+import type { Timesheet, Project } from "@/lib/types/database.types";
 import { formatDuration, statusLabel } from "@/lib/utils/time";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Save, Trash2, Loader2, Timer, Clock } from "lucide-react";
+import { Save, Trash2, Loader2, Timer, Clock, SendHorizonal } from "lucide-react";
 import WarningHourConflict from "./WarningHourConflict";
 
 interface TimesheetFormProps {
@@ -37,6 +37,7 @@ interface TimesheetFormProps {
   defaultDate?: string;
   defaultStartTime?: string;
   timesheet?: Timesheet;
+  projects?: Project[];
   onSuccess: () => void;
   onClose: () => void;
 }
@@ -74,11 +75,21 @@ function addMinutesToTime(t: string, min: number): string {
   return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
+function StatusDot({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    draft: 'bg-gray-400',
+    submitted: 'bg-amber-500',
+    approved: 'bg-emerald-500',
+  }
+  return <span className={cn('h-2.5 w-2.5 rounded-full shrink-0', colors[status] ?? 'bg-gray-400')} />
+}
+
 export default function TimesheetForm({
   mode,
   defaultDate,
   defaultStartTime,
   timesheet,
+  projects = [],
   onSuccess,
   onClose,
 }: TimesheetFormProps) {
@@ -89,11 +100,44 @@ export default function TimesheetForm({
   const initialEnd = timesheet?.end_time.slice(0, 5) ?? (defaultStartTime ? addMinutesToTime(defaultStartTime, 60) : "18:00");
   const [startTime, setStartTime] = useState(initialStart);
   const [endTime, setEndTime] = useState(initialEnd);
-  const [project, setProject] = useState(timesheet?.project ?? "");
-  const [description, setDescription] = useState(timesheet?.description ?? "");
-  const [status, setStatus] = useState<"draft" | "submitted" | "approved">(
-    (timesheet?.status as "draft" | "submitted" | "approved") ?? "draft",
+  // ── Project selection (hybrid: project_id + project text) ──────────────
+  // If timesheet already has project_id, use it. Otherwise start empty.
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(
+    timesheet?.project_id ?? ""
   );
+  // Fallback text for legacy timesheets without project_id
+  const [projectText, setProjectText] = useState(timesheet?.project ?? "");
+
+  // Build visible options: active projects + current project if inactive
+  const visibleProjects = (() => {
+    const active = projects.filter(p => p.active);
+    // In edit mode, if current project is inactive, include it so user sees it
+    if (mode === "edit" && selectedProjectId) {
+      const currentProject = projects.find(p => p.id === selectedProjectId);
+      if (currentProject && !currentProject.active) {
+        return [currentProject, ...active];
+      }
+    }
+    return active;
+  })();
+
+  const hasProjects = projects.length > 0;
+
+  // Derive display name from selected project
+  function getSelectedProjectName(): string {
+    if (selectedProjectId) {
+      const p = projects.find(p => p.id === selectedProjectId);
+      if (p) return p.name;
+    }
+    return projectText;
+  }
+  const [description, setDescription] = useState(timesheet?.description ?? "");
+  const status: "draft" | "submitted" | "approved" =
+    (timesheet?.status as "draft" | "submitted" | "approved") ?? "draft";
+
+  // Lock: submitted/approved timesheets cannot be edited by the user
+  const isLocked = mode === "edit" && (status === "submitted" || status === "approved");
+  const [submitting, setSubmitting] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -127,7 +171,9 @@ export default function TimesheetForm({
     if (!startTime) e.startTime = "Hora de início obrigatória";
     if (!endTime) e.endTime = "Hora de fim obrigatória";
     if (endMin <= startMin) e.endTime = "Hora fim deve ser após o início";
-    if (!project.trim()) e.project = "Projeto obrigatório";
+    // If company has projects, require selection; otherwise require text
+    if (hasProjects && !selectedProjectId) e.project = "Selecione um projeto";
+    if (!hasProjects && !projectText.trim()) e.project = "Projeto obrigatório";
     return e;
   }
 
@@ -194,14 +240,16 @@ export default function TimesheetForm({
         onClose();
         return;
       }
+      const projectName = getSelectedProjectName();
       const { error } = await supabase.from("timesheets").insert({
         user_id: user.id,
         date,
         start_time: startTime,
         end_time: endTime,
-        project: project.trim(),
+        project: projectName.trim(),
+        project_id: selectedProjectId || null,
         description: description.trim() || null,
-        status: "draft" as const,
+        status: submitting ? 'submitted' : 'draft',
       });
       if (error) {
         setErrors({ server: error.message });
@@ -209,15 +257,17 @@ export default function TimesheetForm({
         return;
       }
     } else {
+      const projectName = getSelectedProjectName();
       const { error } = await supabase
         .from("timesheets")
         .update({
           date,
           start_time: startTime,
           end_time: endTime,
-          project: project.trim(),
+          project: projectName.trim(),
+          project_id: selectedProjectId || null,
           description: description.trim() || null,
-          status,
+          rejection_reason: null,
         })
         .eq("id", timesheet!.id);
       if (error) {
@@ -260,20 +310,24 @@ export default function TimesheetForm({
     if (mode === "create") {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { onClose(); return; }
+      const projectName = getSelectedProjectName();
       const { error } = await supabase.from("timesheets").insert({
         user_id: user.id,
         date, start_time: startTime, end_time: endTime,
-        project: project.trim(),
+        project: projectName.trim(),
+        project_id: selectedProjectId || null,
         description: description.trim() || null,
         status: "draft" as const,
       });
       if (error) { setErrors({ server: error.message }); setReplacing(false); return; }
     } else {
+      const projectName = getSelectedProjectName();
       const { error } = await supabase
         .from("timesheets")
         .update({
           date, start_time: startTime, end_time: endTime,
-          project: project.trim(),
+          project: projectName.trim(),
+          project_id: selectedProjectId || null,
           description: description.trim() || null,
           status,
         })
@@ -322,6 +376,23 @@ export default function TimesheetForm({
           )}
           {/* ────────────────────────────────────────────────────────────── */}
 
+          {/* Rejection banner (shown when a draft was previously rejected) */}
+          {mode === "edit" && status === "draft" && timesheet?.rejection_reason && (
+            <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm">
+              <p className="font-medium text-red-700">Apontamento devolvido pelo administrador</p>
+              <p className="text-red-600 mt-1">{timesheet.rejection_reason}</p>
+            </div>
+          )}
+
+          {/* Locked banner */}
+          {isLocked && (
+            <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
+              {status === "submitted"
+                ? "Este apontamento foi enviado para aprovação e não pode ser editado."
+                : "Este apontamento já foi aprovado e não pode ser editado."}
+            </div>
+          )}
+
           {/* Date + Status */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -337,6 +408,7 @@ export default function TimesheetForm({
                 value={date}
                 onChange={(e) => handleDateChange(e.target.value)}
                 className={cn(errors.date && "border-destructive")}
+                disabled={isLocked}
               />
               {errors.date && (
                 <p className="text-xs text-destructive">{errors.date}</p>
@@ -344,22 +416,11 @@ export default function TimesheetForm({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="ts-status">Status</Label>
-              <Select
-                value={status}
-                onValueChange={(v) => {
-                  if (v) setStatus(v as "draft" | "submitted" | "approved");
-                }}
-              >
-                <SelectTrigger id="ts-status" className="w-full">
-                  <SelectValue>{statusLabel(status)}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Rascunho</SelectItem>
-                  <SelectItem value="submitted">Enviado</SelectItem>
-                  <SelectItem value="approved">Aprovado</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Status</Label>
+              <div className="flex items-center h-8 rounded-lg border border-input bg-muted/40 px-3 text-sm">
+                <StatusDot status={status} />
+                <span className="font-medium ml-2">{statusLabel(status)}</span>
+              </div>
             </div>
           </div>
 
@@ -377,6 +438,7 @@ export default function TimesheetForm({
                 type="time"
                 value={startTime}
                 onChange={(e) => handleStartChange(e.target.value)}
+                disabled={isLocked}
                 className={cn(
                   errors.startTime && "border-destructive",
                   conflict && "border-amber-400 focus-visible:ring-amber-400",
@@ -399,6 +461,7 @@ export default function TimesheetForm({
                 type="time"
                 value={endTime}
                 onChange={(e) => handleEndChange(e.target.value)}
+                disabled={isLocked}
                 className={cn(
                   errors.endTime && "border-destructive",
                   conflict && "border-amber-400 focus-visible:ring-amber-400",
@@ -435,13 +498,67 @@ export default function TimesheetForm({
             >
               Projeto
             </Label>
-            <Input
-              id="ts-project"
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-              placeholder="Nome do projeto"
-              className={cn(errors.project && "border-destructive")}
-            />
+            {hasProjects ? (
+              /* ── Structured select (company has projects) ── */
+              <Select
+                value={selectedProjectId}
+                onValueChange={(v) => {
+                  if (v) {
+                    setSelectedProjectId(v);
+                    const p = projects.find(p => p.id === v);
+                    if (p) setProjectText(p.name);
+                  }
+                }}
+              >
+                <SelectTrigger
+                  id="ts-project"
+                  className={cn(
+                    "w-full",
+                    errors.project && "border-destructive",
+                  )}
+                >
+                  <SelectValue placeholder="Selecione um projeto">
+                    {selectedProjectId ? (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: projects.find(p => p.id === selectedProjectId)?.color || '#94a3b8' }}
+                        />
+                        {getSelectedProjectName()}
+                        {projects.find(p => p.id === selectedProjectId)?.active === false && (
+                          <span className="text-[10px] text-gray-400 ml-1">(inativo)</span>
+                        )}
+                      </span>
+                    ) : undefined}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {visibleProjects.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: p.color || '#94a3b8' }}
+                        />
+                        {p.name}
+                        {!p.active && (
+                          <span className="text-[10px] text-gray-400 ml-1">(inativo)</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              /* ── Fallback text input (no projects registered yet) ── */
+              <Input
+                id="ts-project"
+                value={projectText}
+                onChange={(e) => setProjectText(e.target.value)}
+                placeholder="Nome do projeto"
+                className={cn(errors.project && "border-destructive")}
+              />
+            )}
             {errors.project && (
               <p className="text-xs text-destructive">{errors.project}</p>
             )}
@@ -459,6 +576,7 @@ export default function TimesheetForm({
               placeholder="O que foi feito?"
               rows={4}
               className="resize-none"
+              disabled={isLocked}
             />
           </div>
         </div>
@@ -503,23 +621,46 @@ export default function TimesheetForm({
 
           <div className="ml-auto flex items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={onClose}>
-              Cancelar
+              {isLocked ? "Fechar" : "Cancelar"}
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={loading || replacing || !!conflict}
-              className="bg-[#3730A3] hover:bg-[#312E81] disabled:opacity-50"
-            >
-              {loading || replacing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              <span className="ml-1.5">
-                {replacing ? "Substituindo..." : loading ? "Verificando..." : "Salvar"}
-              </span>
-            </Button>
+            {!isLocked && (
+              <>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={loading || replacing || !!conflict || submitting}
+                  className="bg-[#3730A3] hover:bg-[#312E81] disabled:opacity-50"
+                  onClick={() => setSubmitting(false)}
+                >
+                  {loading && !submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  <span className="ml-1.5">
+                    {replacing ? "Substituindo..." : loading && !submitting ? "Verificando..." : "Salvar"}
+                  </span>
+                </Button>
+                {status === "draft" && (
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={loading || replacing || !!conflict || submitting}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                    onClick={() => setSubmitting(true)}
+                  >
+                    {loading && submitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <SendHorizonal className="h-4 w-4" />
+                    )}
+                    <span className="ml-1.5">
+                      {loading && submitting ? "Enviando..." : "Salvar e Enviar"}
+                    </span>
+                  </Button>
+                )}
+              </>
+            )}
           </div>
         </div>
         </div>

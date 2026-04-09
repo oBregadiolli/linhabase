@@ -30,7 +30,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
-  const publicPaths = ['/login', '/register']
+  const publicPaths = ['/login', '/register', '/invite']
   const isPublic = publicPaths.some((p) => pathname.startsWith(p))
 
   if (!user && !isPublic) {
@@ -39,7 +39,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isPublic) {
+  const authPaths = ['/login', '/register']
+  const isAuthPage = authPaths.some((p) => pathname.startsWith(p))
+
+  if (user && isAuthPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

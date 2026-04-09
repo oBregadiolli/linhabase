@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Timesheet } from '@/lib/types/database.types'
+import type { Timesheet, Project } from '@/lib/types/database.types'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
@@ -24,8 +24,47 @@ export default function TimesheetDialog({ state, onClose, onSuccess }: Timesheet
   const [timesheet, setTimesheet]   = useState<Timesheet | undefined>(undefined)
   const [fetching, setFetching]     = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [projects, setProjects]     = useState<Project[]>([])
+
+  const supabase = useMemo(() => createClient(), [])
 
   const editId = state.open && state.mode === 'edit' ? state.timesheetId : null
+
+  // Load user's company projects (once per dialog open)
+  useEffect(() => {
+    if (!state.open) return
+    let cancelled = false
+
+    async function loadProjects() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || cancelled) return
+
+      // Get user's active company membership
+      const { data: membership } = await supabase
+        .from('company_members')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle()
+
+      if (!membership || cancelled) return
+
+      // Fetch all projects for the company (active + inactive for edit scenarios)
+      const { data: projectList } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('company_id', membership.company_id)
+        .order('name', { ascending: true })
+
+      if (!cancelled && projectList) {
+        setProjects(projectList as Project[])
+      }
+    }
+
+    loadProjects()
+    return () => { cancelled = true }
+  }, [state.open, supabase])
 
   useEffect(() => {
     if (!editId) {
@@ -38,7 +77,7 @@ export default function TimesheetDialog({ state, onClose, onSuccess }: Timesheet
     setFetching(true)
     setFetchError(null)
 
-    createClient()
+    supabase
       .from('timesheets')
       .select('*')
       .eq('id', editId)
@@ -54,7 +93,7 @@ export default function TimesheetDialog({ state, onClose, onSuccess }: Timesheet
       })
 
     return () => { cancelled = true }
-  }, [editId])
+  }, [editId, supabase])
 
   return (
     <Dialog open={state.open} onOpenChange={open => { if (!open) onClose() }}>
@@ -113,6 +152,7 @@ export default function TimesheetDialog({ state, onClose, onSuccess }: Timesheet
             defaultDate={state.mode === 'create' ? state.defaultDate : undefined}
             defaultStartTime={state.mode === 'create' ? state.defaultStartTime : undefined}
             timesheet={state.mode === 'edit' ? timesheet : undefined}
+            projects={projects}
             onSuccess={onSuccess}
             onClose={onClose}
           />

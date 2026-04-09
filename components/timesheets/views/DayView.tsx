@@ -230,8 +230,10 @@ export default function DayView({ timesheets, currentDate, onNew, onEdit, onNewF
                 >
                   <p className="text-sm font-bold truncate" style={{ color: c.text }}>{t.project}</p>
                   {height > 30 && (
-                    <p className="text-xs mt-0.5" style={{ color: c.text, opacity: 0.75 }}>
+                    <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: c.text, opacity: 0.75 }}>
                       {formatTime(t.start_time)} – {formatTime(t.end_time)} · {formatDuration(t.duration_minutes)}
+                      {t.status === 'submitted' && <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" title="Enviado" />}
+                      {t.status === 'approved' && <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" title="Aprovado" />}
                     </p>
                   )}
                   {height > 54 && t.description && (

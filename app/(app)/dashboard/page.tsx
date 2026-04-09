@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { isCurrentUserAdmin } from '@/lib/supabase/membership'
 import DashboardClient from '@/components/timesheets/DashboardClient'
 
 export default async function DashboardPage() {
@@ -14,6 +15,8 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .maybeSingle() as { data: { name: string; email: string } | null }
 
+  const isAdmin = await isCurrentUserAdmin()
+
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[#F3F4F6] flex items-center justify-center">
@@ -21,9 +24,12 @@ export default async function DashboardPage() {
       </div>
     }>
       <DashboardClient
+        userId={user.id}
         userName={profile?.name || user.email || ''}
         userEmail={profile?.email || user.email || ''}
+        isAdmin={isAdmin}
       />
     </Suspense>
   )
 }
+

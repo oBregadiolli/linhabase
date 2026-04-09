@@ -10,7 +10,7 @@ import {
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Pencil, Trash2, Info } from 'lucide-react'
+import { Pencil, Trash2, Info, SendHorizonal } from 'lucide-react'
 
 function fmtTimestamp(iso: string): string {
   const d = new Date(iso)
@@ -24,6 +24,7 @@ interface TableViewProps {
   timesheets: Timesheet[]
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onSubmit?: (id: string) => void
 }
 
 const PAGE_SIZE = 10
@@ -34,7 +35,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'outline' | 'd
   return 'outline'
 }
 
-export default function TableView({ timesheets, onEdit, onDelete }: TableViewProps) {
+export default function TableView({ timesheets, onEdit, onDelete, onSubmit }: TableViewProps) {
   const [page, setPage]           = useState(1)
   const [search, setSearch]       = useState('')
   const [confirmId, setConfirmId] = useState<string | null>(null)
@@ -97,7 +98,17 @@ export default function TableView({ timesheets, onEdit, onDelete }: TableViewPro
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap tabular-nums">{formatTime(t.end_time)}</td>
                     <td className="px-4 py-3 font-medium whitespace-nowrap tabular-nums">{formatDuration(t.duration_minutes)}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={statusVariant(t.status)}>{statusLabel(t.status)}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={statusVariant(t.status)}>{statusLabel(t.status)}</Badge>
+                        {t.status === 'draft' && t.rejection_reason && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-red-700 bg-red-50 border border-red-200 cursor-help"
+                            title={t.rejection_reason}
+                          >
+                            Devolvido
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
@@ -105,18 +116,32 @@ export default function TableView({ timesheets, onEdit, onDelete }: TableViewPro
                           variant="ghost" size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
                           onClick={() => onEdit(t.id)}
-                          aria-label={`Editar ${t.project}`}
+                          aria-label={t.status === 'draft' ? `Editar ${t.project}` : `Ver ${t.project}`}
+                          title={t.status === 'draft' ? 'Editar' : 'Visualizar'}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setConfirmId(t.id)}
-                          aria-label={`Excluir ${t.project}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {t.status === 'draft' && (
+                          <Button
+                            variant="ghost" size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setConfirmId(t.id)}
+                            aria-label={`Excluir ${t.project}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {t.status === 'draft' && onSubmit && (
+                          <Button
+                            variant="ghost" size="icon"
+                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            onClick={() => onSubmit(t.id)}
+                            aria-label={`Enviar ${t.project}`}
+                            title="Enviar para aprovação"
+                          >
+                            <SendHorizonal className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         {/* Info button */}
                         <div className="relative">
                           <Button

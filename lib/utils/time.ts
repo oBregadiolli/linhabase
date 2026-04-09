@@ -69,11 +69,11 @@ export function isSameDay(a: Date, b: Date): boolean {
     a.getDate() === b.getDate()
 }
 
-export function periodLabel(view: 'table' | 'month' | 'week' | 'day', date: Date): string {
+export function periodLabel(view: 'table' | 'month' | 'week' | 'day' | 'xy', date: Date): string {
   const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
   const weekdays = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
 
-  if (view === 'month' || view === 'table') {
+  if (view === 'month' || view === 'table' || view === 'xy') {
     return `${months[date.getMonth()]} ${date.getFullYear()}`
   }
   if (view === 'week') {

@@ -395,9 +395,7 @@ export default function TimesheetForm({
           {/* Locked banner */}
           {isLocked && (
             <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
-              {status === "submitted"
-                ? "Este apontamento foi enviado para aprovação e não pode ser editado."
-                : "Este apontamento já foi aprovado e não pode ser editado."}
+              Este apontamento já foi aprovado e não pode ser editado.
             </div>
           )}
 

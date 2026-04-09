@@ -285,7 +285,7 @@ export default function XYClient({ companyName, members, projects, embedded }: X
               </div>
 
               {/* Member filter */}
-              <Select value={filterMember} onValueChange={setFilterMember}>
+              <Select value={filterMember} onValueChange={(v) => { if (v !== null) setFilterMember(v) }}>
                 <SelectTrigger className="w-auto min-w-[180px] bg-white border-gray-200 text-sm font-medium text-gray-700 gap-1.5 h-auto py-1.5 px-3 rounded-lg">
                   <Users className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                   <span className="truncate">

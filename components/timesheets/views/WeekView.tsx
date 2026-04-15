@@ -36,7 +36,7 @@ function minutesToTimeStr(min: number) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-/* ÔöÇÔöÇ Interaction mode ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+/* Interaction mode */
 type InteractionMode = 'move' | 'resize-top' | 'resize-bottom'
 
 interface DragInfo {
@@ -55,7 +55,7 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
   const hours     = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i)
   const { toast } = useToast()
 
-  /* ÔöÇÔöÇ Drag / Resize state ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+  /* Drag / Resize state */
   const [drag, setDrag]     = useState<DragInfo | null>(null)
   const [saving, setSaving] = useState(false)
   const dragging    = useRef(false)
@@ -122,7 +122,7 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
       newStart = Math.max(START_HOUR * 60, newStart)
     }
 
-    // Horizontal day change ÔÇö only for move
+    // Horizontal day change — only for move
     let targetDate = dragTsRef.current?.date ?? ''
     if (mode === 'move') {
       for (let i = 0; i < columnRefs.current.length; i++) {
@@ -153,7 +153,7 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
       return
     }
 
-    // ÔöÇÔöÇ Overlap check ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // Overlap check
     const targetDayTs = timesheets.filter(t => t.date === d.date)
     const hasOverlap = targetDayTs.some(other => {
       if (other.id === ts.id) return false
@@ -164,10 +164,10 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
 
     if (hasOverlap) {
       setDrag(null)
-      toast('N├úo ├® poss├¡vel mover: o hor├írio sobrep├Áe outro apontamento.', 'warning')
+      toast('Horário já ocupado neste período.', 'info', 2000)
       return
     }
-    // ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    //
 
     setSaving(true)
     const supabase = createClient()
@@ -198,7 +198,7 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  /* ÔöÇÔöÇ Cursor on body ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+  /* Cursor on body */
   useEffect(() => {
     if (!drag) return
     const cls = drag.mode === 'resize-top' ? 'cursor-n-resize'
@@ -208,7 +208,7 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
     return () => { document.body.classList.remove(cls, 'select-none') }
   }, [drag?.mode, !!drag])
 
-  /* ÔöÇÔöÇ Click-to-create ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+  /* Click-to-create */
   const handleColumnClick = useCallback((day: Date, e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('[data-drag-card]')) return
     if ((e.target as HTMLElement).closest('button')) return
@@ -324,7 +324,7 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
                         color: c.text,
                       }}
                     >
-                      {/* ÔöÇÔöÇ Top resize handle ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */}
+                      {/* Top resize handle */}
                       <div
                         className="absolute top-0 left-0 right-0 h-[6px] cursor-n-resize z-20 group-hover:bg-[#3730A3]/10 rounded-t-md transition-colors"
                         onPointerDown={e => handlePointerDown(e, t, 'resize-top')}
@@ -332,7 +332,7 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
                         <div className="mx-auto mt-[1px] w-5 h-[2px] rounded-full bg-gray-400/0 group-hover:bg-gray-400/60 transition-colors" />
                       </div>
 
-                      {/* ÔöÇÔöÇ Body (move) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */}
+                      {/* Body (move) */}
                       <div
                         className={`absolute inset-0 top-[6px] bottom-[6px] px-1.5 overflow-hidden ${isDraggingThis && drag.mode === 'move' ? 'cursor-grabbing' : 'cursor-grab'}`}
                         onPointerDown={e => handlePointerDown(e, t, 'move')}
@@ -346,12 +346,12 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
                         <div className="truncate font-semibold leading-tight mt-0.5">{resolveProjectName(t.project_id, projectMap)}</div>
                         {height > 32 && (
                           <div className="truncate opacity-70">
-                            {minutesToTimeStr(displayStart)}ÔÇô{minutesToTimeStr(displayEnd)}
+                            {minutesToTimeStr(displayStart)}–{minutesToTimeStr(displayEnd)}
                           </div>
                         )}
                       </div>
 
-                      {/* ÔöÇÔöÇ Bottom resize handle ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */}
+                      {/* Bottom resize handle */}
                       <div
                         className="absolute bottom-0 left-0 right-0 h-[6px] cursor-s-resize z-20 group-hover:bg-[#3730A3]/10 rounded-b-md transition-colors"
                         onPointerDown={e => handlePointerDown(e, t, 'resize-bottom')}
@@ -362,7 +362,7 @@ export default function WeekView({ timesheets, projectMap, currentDate, onEdit, 
                       {/* Resize tooltip */}
                       {isDraggingThis && (
                         <div className="absolute -top-6 left-0 z-[60] pointer-events-none bg-gray-900 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap">
-                          {minutesToTimeStr(drag.startMin)}ÔÇô{minutesToTimeStr(drag.endMin)} ┬À {formatDuration(durationMin)}
+                          {minutesToTimeStr(drag.startMin)}–{minutesToTimeStr(drag.endMin)} · {formatDuration(durationMin)}
                         </div>
                       )}
                     </div>

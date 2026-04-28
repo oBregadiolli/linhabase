@@ -48,7 +48,7 @@ function fmtHour(h: number) {
   return `${String(h).padStart(2, '0')}:00`
 }
 
-/* ÔöÇÔöÇ Interaction mode ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+/* Interaction mode */
 type InteractionMode = 'move' | 'resize-top' | 'resize-bottom'
 
 interface DragInfo {
@@ -77,7 +77,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
   const blocks   = computeLayout(dayTs)
   const totalMin = dayTs.reduce((s, t) => s + (t.duration_minutes ?? 0), 0)
 
-  /* ÔöÇÔöÇ Drag / Resize State ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+  /* Drag / Resize State */
   const [drag, setDrag]     = useState<DragInfo | null>(null)
   const [saving, setSaving] = useState(false)
   const dragging    = useRef(false)
@@ -88,7 +88,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
   const dragTsRef   = useRef<Timesheet | null>(null)
   const didMove     = useRef(false)
 
-  /* ÔöÇÔöÇ Pointer handlers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+  /* Pointer handlers */
   const handlePointerDown = useCallback((e: React.PointerEvent, ts: Timesheet, mode: InteractionMode) => {
     if (e.button !== 0) return
     e.preventDefault()
@@ -157,7 +157,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
       return
     }
 
-    // ÔöÇÔöÇ Overlap check ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // Overlap check
     const hasOverlap = dayTs.some(other => {
       if (other.id === ts.id) return false
       const otherStart = timeToMinutes(other.start_time)
@@ -170,7 +170,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
       toast('N├úo ├® poss├¡vel mover: o hor├írio sobrep├Áe outro apontamento.', 'warning')
       return
     }
-    // ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    //
 
     setSaving(true)
     const supabase = createClient()
@@ -200,7 +200,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  /* ÔöÇÔöÇ Click-to-create ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+  /* Click-to-create */
   const handleColumnClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('[data-drag-card]')) return
     if ((e.target as HTMLElement).closest('button')) return
@@ -215,7 +215,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
   function handleStartHour(v: number) { setStartHour(Math.min(v, endHour - 1)) }
   function handleEndHour(v: number)   { setEndHour(Math.max(v, startHour + 1)) }
 
-  /* ÔöÇÔöÇ Cursor for body while dragging ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+  /* Cursor for body while dragging */
   useEffect(() => {
     if (!drag) return
     const cls = drag.mode === 'resize-top' ? 'cursor-n-resize'
@@ -227,7 +227,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      {/* ÔöÇÔöÇ Header ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */}
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 gap-3 flex-wrap">
         <div className="text-sm font-semibold text-gray-700">
           {dayTs.length} apontamento{dayTs.length !== 1 ? 's' : ''}
@@ -271,7 +271,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
 
       {saving && <div className="h-0.5 bg-gradient-to-r from-[#3730A3] via-indigo-400 to-[#3730A3] animate-pulse" />}
 
-      {/* ÔöÇÔöÇ Timeline ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */}
+      {/* Timeline */}
       <div className="overflow-y-auto" style={{ maxHeight: '600px' }}>
         <div className="grid grid-cols-[56px_1fr]" style={{ height: `${gridHeight}px` }}>
           {/* Hour/tick labels */}
@@ -350,7 +350,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
                     borderLeft: `4px solid ${c.border}`,
                   }}
                 >
-                  {/* ÔöÇÔöÇ Top resize handle ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */}
+                  {/* Top resize handle */}
                   <div
                     className="absolute top-0 left-0 right-0 h-2 cursor-n-resize z-20 group-hover:bg-[#3730A3]/10 rounded-t-lg transition-colors"
                     onPointerDown={e => handlePointerDown(e, t, 'resize-top')}
@@ -358,7 +358,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
                     <div className="mx-auto mt-[2px] w-8 h-[3px] rounded-full bg-gray-400/0 group-hover:bg-gray-400/50 transition-colors" />
                   </div>
 
-                  {/* ÔöÇÔöÇ Main body (move handle) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */}
+                  {/* Main body (move handle) */}
                   <div
                     className={`absolute inset-0 top-2 bottom-2 px-3 py-1 ${isDragging && drag.mode === 'move' ? 'cursor-grabbing' : 'cursor-grab'}`}
                     onPointerDown={e => handlePointerDown(e, t, 'move')}
@@ -372,7 +372,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
                     <p className="text-sm font-bold truncate" style={{ color: c.text }}>{pName}</p>
                     {height > 30 && (
                       <p className="text-xs mt-0.5" style={{ color: c.text, opacity: 0.75 }}>
-                        {minutesToTimeStr(displayStart)} ÔÇô {minutesToTimeStr(displayEnd)} ┬À {formatDuration(durationMin)}
+                        {minutesToTimeStr(displayStart)} – {minutesToTimeStr(displayEnd)} · {formatDuration(durationMin)}
                       </p>
                     )}
                     {height > 54 && t.description && (
@@ -380,7 +380,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
                     )}
                   </div>
 
-                  {/* ÔöÇÔöÇ Bottom resize handle ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */}
+                  {/* Bottom resize handle */}
                   <div
                     className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize z-20 group-hover:bg-[#3730A3]/10 rounded-b-lg transition-colors"
                     onPointerDown={e => handlePointerDown(e, t, 'resize-bottom')}
@@ -400,7 +400,7 @@ export default function DayView({ timesheets, projectMap, currentDate, onNew, on
                   left: '8px',
                 }}
               >
-                {minutesToTimeStr(drag.startMin)} ÔÇô {minutesToTimeStr(drag.endMin)} ┬À {formatDuration(drag.endMin - drag.startMin)}
+                {minutesToTimeStr(drag.startMin)} – {minutesToTimeStr(drag.endMin)} · {formatDuration(drag.endMin - drag.startMin)}
               </div>
             )}
           </div>

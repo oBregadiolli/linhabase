@@ -6,12 +6,13 @@ import { isoDate, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from '@/lib
 import { ChevronLeft, ChevronRight, Check, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Project, Timesheet } from '@/lib/types/database.types'
+import WarningHourConflict from '@/components/timesheets/WarningHourConflict'
 
 interface QuickXYViewProps {
   userId: string
   projects: Project[]
   currentDate: Date
-  onNavigate: (dir: 'prev' | 'next') => void
+  onNavigate: (dir: 'prev' | 'next', period: 'month' | 'week') => void
   onTimesheetAdded: () => void
   openEditDialog: (id: string) => void
 }
@@ -48,6 +49,13 @@ function minutesToHours(min: number): string {
 
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
+interface ConflictEntry {
+  id: string
+  project_id: string | null
+  start_time: string
+  end_time: string
+}
+
 // ── Inline entry cell ─────────────────────────────────────────────────────────
 function QuickEntry({
   date,
@@ -58,6 +66,7 @@ function QuickEntry({
   onSuccess,
   onEdit,
   existingId,
+  resolveProjectName,
 }: {
   date: string
   project: Project
@@ -67,10 +76,13 @@ function QuickEntry({
   onSuccess: () => void
   onEdit: (id: string) => void
   existingId: string | null
+  resolveProjectName: (projectId: string | null) => string
 }) {
   const [editing, setEditing] = useState(false)
   const [hours, setHours] = useState('')
   const [saving, setSaving] = useState(false)
+  const [conflict, setConflict] = useState<ConflictEntry | null>(null)
+  const [replacing, setReplacing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const supabase = useMemo(() => createClient(), [])
 
@@ -78,40 +90,112 @@ function QuickEntry({
     if (editing) inputRef.current?.focus()
   }, [editing])
 
+  async function checkOverlap(startTime: string, endTime: string): Promise<ConflictEntry | null> {
+    let query = supabase
+      .from('timesheets')
+      .select('id, project_id, start_time, end_time')
+      .eq('user_id', userId)
+      .eq('date', date)
+      .lt('start_time', endTime) // existing starts before new ends
+      .gt('end_time', startTime) // existing ends   after  new starts
+      .limit(1)
+
+    if (existingId) query = query.neq('id', existingId)
+
+    const { data } = await query
+    if (data && data.length > 0) {
+      const hit = data[0] as ConflictEntry
+      return hit
+    }
+    return null
+  }
+
+  async function persist(startTime: string, endTime: string, totalMinutes: number) {
+    if (existingId) {
+      return await supabase.from('timesheets').update({
+        start_time: startTime,
+        end_time: endTime,
+        duration_minutes: totalMinutes,
+        updated_at: new Date().toISOString(),
+      }).eq('id', existingId)
+    }
+    return await supabase.from('timesheets').insert({
+      user_id: userId,
+      company_id: companyId,
+      project_id: project.id,
+      date,
+      start_time: startTime,
+      end_time: endTime,
+      duration_minutes: totalMinutes,
+      status: 'draft',
+    })
+  }
+
   async function handleSave() {
     const h = parseFloat(hours.replace(',', '.'))
     if (isNaN(h) || h <= 0 || h > 24) { setEditing(false); return }
 
     setSaving(true)
+    setConflict(null)
     const startTime = '08:00:00'
     const totalMinutes = Math.round(h * 60)
     const endHour = Math.floor((totalMinutes + 8 * 60) / 60) % 24
     const endMin = (totalMinutes + 8 * 60) % 60
     const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`
 
-    if (existingId) {
-      await supabase.from('timesheets').update({
-        start_time: startTime,
-        end_time: endTime,
-        duration_minutes: totalMinutes,
-        updated_at: new Date().toISOString(),
-      }).eq('id', existingId)
-    } else {
-      await supabase.from('timesheets').insert({
-        user_id: userId,
-        company_id: companyId,
-        project_id: project.id,
-        date,
-        start_time: startTime,
-        end_time: endTime,
-        duration_minutes: totalMinutes,
-        status: 'draft',
-      })
+    const hit = await checkOverlap(startTime, endTime)
+    if (hit) {
+      setConflict(hit)
+      setSaving(false)
+      return
+    }
+
+    const { error } = await persist(startTime, endTime, totalMinutes)
+    // DB-level exclusion constraint: surface as conflict UI (race conditions / other writers)
+    if (error) {
+      const hit2 = await checkOverlap(startTime, endTime)
+      if (hit2) setConflict(hit2)
+      setSaving(false)
+      return
     }
 
     setSaving(false)
     setEditing(false)
     setHours('')
+    onSuccess()
+  }
+
+  async function handleReplace() {
+    if (!conflict) return
+    const h = parseFloat(hours.replace(',', '.'))
+    if (isNaN(h) || h <= 0 || h > 24) return
+
+    setReplacing(true)
+    const startTime = '08:00:00'
+    const totalMinutes = Math.round(h * 60)
+    const endHour = Math.floor((totalMinutes + 8 * 60) / 60) % 24
+    const endMin = (totalMinutes + 8 * 60) % 60
+    const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`
+
+    const { error: delErr } = await supabase.from('timesheets').delete().eq('id', conflict.id)
+    if (delErr) {
+      setReplacing(false)
+      return
+    }
+
+    const { error } = await persist(startTime, endTime, totalMinutes)
+    if (error) {
+      const hit2 = await checkOverlap(startTime, endTime)
+      if (hit2) setConflict(hit2)
+      setReplacing(false)
+      return
+    }
+
+    setReplacing(false)
+    setSaving(false)
+    setEditing(false)
+    setHours('')
+    setConflict(null)
     onSuccess()
   }
 
@@ -122,28 +206,39 @@ function QuickEntry({
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1 px-1">
-        <input
-          ref={inputRef}
-          type="text"
-          value={hours}
-          onChange={e => setHours(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="h"
-          className="w-12 text-center text-xs border border-[#1D4ED8] rounded py-1 outline-none bg-white"
-        />
-        {saving ? (
-          <Loader2 className="h-3 w-3 animate-spin text-blue-500 shrink-0" />
-        ) : (
-          <>
-            <button onClick={handleSave} className="text-emerald-600 hover:text-emerald-700 cursor-pointer">
-              <Check className="h-3.5 w-3.5" />
-            </button>
-            <button onClick={() => { setEditing(false); setHours('') }} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </>
+      <div className="px-1 py-1 space-y-1">
+        {conflict && (
+          <WarningHourConflict
+            compact
+            project={resolveProjectName(conflict.project_id)}
+            startTime={conflict.start_time}
+            endTime={conflict.end_time}
+            onReplace={replacing ? undefined : handleReplace}
+          />
         )}
+        <div className="flex items-center gap-1">
+          <input
+            ref={inputRef}
+            type="text"
+            value={hours}
+            onChange={e => setHours(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="h"
+            className="w-12 text-center text-xs border border-[#1D4ED8] rounded py-1 outline-none bg-white"
+          />
+          {saving || replacing ? (
+            <Loader2 className="h-3 w-3 animate-spin text-blue-500 shrink-0" />
+          ) : (
+            <>
+              <button onClick={handleSave} className="text-emerald-600 hover:text-emerald-700 cursor-pointer">
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={() => { setEditing(false); setHours(''); setConflict(null) }} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
     )
   }
@@ -250,8 +345,21 @@ export default function QuickXYView({
     let t = 0; for (const v of colTotals.values()) t += v; return t
   }, [colTotals])
 
-  // Only show projects that are active
-  const activeProjects = projects.filter(p => p.active)
+  // Show active projects, plus inactive projects that already have entries in the period
+  const visibleProjects = useMemo(() => {
+    return projects.filter(p => p.active || matrix.has(p.id))
+  }, [projects, matrix])
+
+  const projectNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const p of projects) map.set(p.id, p.name)
+    return map
+  }, [projects])
+
+  const resolveProjectName = useCallback((projectId: string | null) => {
+    if (!projectId) return 'Sem projeto'
+    return projectNameById.get(projectId) ?? 'Projeto'
+  }, [projectNameById])
 
   function handleSuccess() {
     fetchData()
@@ -280,11 +388,11 @@ export default function QuickXYView({
 
         {/* Navigator */}
         <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1.5">
-          <button onClick={() => onNavigate('prev')} className="p-1 rounded hover:bg-gray-100 cursor-pointer">
+          <button onClick={() => onNavigate('prev', period)} className="p-1 rounded hover:bg-gray-100 cursor-pointer">
             <ChevronLeft className="h-4 w-4 text-gray-500" />
           </button>
           <span className="text-sm font-medium text-gray-700 min-w-[160px] text-center">{periodLabel}</span>
-          <button onClick={() => onNavigate('next')} className="p-1 rounded hover:bg-gray-100 cursor-pointer">
+          <button onClick={() => onNavigate('next', period)} className="p-1 rounded hover:bg-gray-100 cursor-pointer">
             <ChevronRight className="h-4 w-4 text-gray-500" />
           </button>
         </div>
@@ -322,7 +430,7 @@ export default function QuickXYView({
           </thead>
 
           <tbody>
-            {activeProjects.length === 0 ? (
+            {visibleProjects.length === 0 ? (
               <tr>
                 <td colSpan={days.length + 2} className="text-center py-12 text-sm text-gray-400">
                   Nenhum projeto ativo.
@@ -330,7 +438,7 @@ export default function QuickXYView({
               </tr>
             ) : (
               <>
-                {activeProjects.map((proj, idx) => {
+                {visibleProjects.map((proj, idx) => {
                   const dayMap = matrix.get(proj.id)
                   const rowTotal = dayMap ? Array.from(dayMap.values()).reduce((s, v) => s + v.minutes, 0) : 0
 
@@ -340,6 +448,7 @@ export default function QuickXYView({
                       className={cn(
                         'border-b border-gray-50 hover:bg-blue-50/20 transition-colors',
                         idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/20',
+                        !proj.active && 'opacity-70',
                       )}
                     >
                       {/* Project name */}
@@ -371,6 +480,7 @@ export default function QuickXYView({
                               companyId={companyId}
                               onSuccess={handleSuccess}
                               onEdit={openEditDialog}
+                              resolveProjectName={resolveProjectName}
                             />
                           </td>
                         )

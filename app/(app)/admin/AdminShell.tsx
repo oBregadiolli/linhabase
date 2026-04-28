@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, lazy, Suspense } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useEffect, useMemo, useState, lazy, Suspense } from 'react'
+import { useSearchParams, usePathname } from 'next/navigation'
 import { FileText, Users, FolderOpen, Grid3X3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CompanyMember, Invitation, Project } from '@/lib/types/database.types'
@@ -73,27 +73,42 @@ export default function AdminShell({
   revokedInvitations,
 }: AdminShellProps) {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const pathname = usePathname()
 
-  // Active tab from URL or default
-  const activeTab: AdminTab = useMemo(() => {
+  // URL tab (for deep-link / back-forward sync)
+  const urlTab: AdminTab = useMemo(() => {
     const t = searchParams.get('tab')
     if (t === 'team' || t === 'projects' || t === 'timesheets' || t === 'xy') return t
     return 'timesheets'
   }, [searchParams])
 
+  // Keep tab switching purely client-side to avoid re-triggering server renders on every change.
+  const [activeTab, setActiveTab] = useState<AdminTab>(urlTab)
+
+  useEffect(() => {
+    setActiveTab(urlTab)
+  }, [urlTab])
+
   function setTab(tab: AdminTab) {
+    setActiveTab(tab)
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', tab)
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    const nextUrl = `${pathname}?${params.toString()}`
+    // Avoid Next router navigation (which triggers server re-render + refetch).
+    window.history.replaceState(null, '', nextUrl)
   }
 
   return (
     <div className="flex h-screen bg-[#F3F4F6] overflow-hidden">
 
       {/* ── Sidebar (same as dashboard) ──────────────────────── */}
-      <Sidebar userName={adminName} userEmail={adminEmail} avatarUrl={adminAvatarUrl} isAdmin={true} />
+      <Sidebar
+        userName={adminName}
+        userEmail={adminEmail}
+        avatarUrl={adminAvatarUrl}
+        isAdmin={true}
+        onAdminTabChange={(tab) => setActiveTab(tab as AdminTab)}
+      />
 
       {/* ── Main content area ────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight, Shield, Users, FolderOpen } from 'lucide-react'
@@ -11,6 +11,7 @@ interface SidebarProps {
   userEmail?: string
   avatarUrl?: string | null
   isAdmin?: boolean
+  onAdminTabChange?: (tab: string) => void
 }
 
 function initials(name: string): string {
@@ -21,12 +22,17 @@ function initials(name: string): string {
     .join('')
 }
 
-export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin }: SidebarProps) {
+export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin, onAdminTabChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
   const currentTab = searchParams.get('tab') || ''
+  const [localAdminTab, setLocalAdminTab] = useState(currentTab)
+
+  useEffect(() => {
+    setLocalAdminTab(currentTab)
+  }, [currentTab])
 
   const navItems = [
     {
@@ -46,21 +52,21 @@ export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin }: Sid
           tab: 'timesheets',
           href: '/admin?tab=timesheets',
           icon: ClipboardList,
-          active: isAdminPage && (currentTab === 'timesheets' || !currentTab),
+          active: isAdminPage && (localAdminTab === 'timesheets' || !localAdminTab),
         },
         {
           label: 'Equipe',
           tab: 'team',
           href: '/admin?tab=team',
           icon: Users,
-          active: isAdminPage && currentTab === 'team',
+          active: isAdminPage && localAdminTab === 'team',
         },
         {
           label: 'Projetos',
           tab: 'projects',
           href: '/admin?tab=projects',
           icon: FolderOpen,
-          active: isAdminPage && currentTab === 'projects',
+          active: isAdminPage && localAdminTab === 'projects',
         },
       ]
     : []
@@ -69,10 +75,15 @@ export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin }: Sid
   const handleAdminClick = useCallback((tab: string, href: string, e: React.MouseEvent) => {
     if (isAdminPage) {
       e.preventDefault()
-      router.replace(`/admin?tab=${tab}`, { scroll: false })
+      setLocalAdminTab(tab)
+      const nextUrl = `/admin?tab=${tab}`
+      window.history.replaceState(null, '', nextUrl)
+      onAdminTabChange?.(tab)
+      // If we are not on the unified admin page for some reason, fallback to router
+      if (pathname !== '/admin') router.replace(nextUrl, { scroll: false })
     }
     // If NOT on admin page, let the Link navigate normally
-  }, [isAdminPage, router])
+  }, [isAdminPage, router, pathname, localAdminTab, searchParams])
 
   return (
     <aside

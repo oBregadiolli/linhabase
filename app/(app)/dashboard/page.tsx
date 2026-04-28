@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { isCurrentUserAdmin, getCurrentMembership } from '@/lib/supabase/membership'
 import DashboardClient from '@/components/timesheets/DashboardClient'
+import type { Project } from '@/lib/types/database.types'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -13,11 +14,20 @@ export default async function DashboardPage() {
   const membership = await getCurrentMembership()
   if (!membership) redirect('/onboarding')
 
+  const companyId = membership.company.id
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('name, email, avatar_url')
     .eq('id', user.id)
     .maybeSingle() as { data: { name: string; email: string; avatar_url: string | null } | null }
+
+  const { data: companyProjects } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('active', { ascending: false })
+    .order('name', { ascending: true })
 
   const isAdmin = await isCurrentUserAdmin()
 
@@ -33,6 +43,8 @@ export default async function DashboardPage() {
         userEmail={profile?.email || user.email || ''}
         avatarUrl={profile?.avatar_url ?? null}
         isAdmin={isAdmin}
+        companyId={companyId}
+        initialProjects={(companyProjects ?? []) as Project[]}
       />
     </Suspense>
   )

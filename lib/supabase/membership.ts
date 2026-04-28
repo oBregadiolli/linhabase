@@ -38,13 +38,23 @@ export async function getCurrentMembership(): Promise<Membership | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: member } = await supabase
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('active_company_id')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const activeCompanyId = profile?.active_company_id ?? null
+
+  const memberQuery = supabase
     .from('company_members')
     .select('*')
     .eq('user_id', user.id)
     .eq('status', 'active')
-    .limit(1)
-    .maybeSingle()
+
+  const { data: member } = activeCompanyId
+    ? await memberQuery.eq('company_id', activeCompanyId).maybeSingle()
+    : await memberQuery.limit(1).maybeSingle()
 
   if (!member) return null
 

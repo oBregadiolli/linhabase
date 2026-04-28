@@ -18,14 +18,16 @@ interface TimesheetDialogProps {
   state: DialogState
   onClose: () => void
   onSuccess: () => void
+  projects?: Project[]
+  companyId?: string
 }
 
-export default function TimesheetDialog({ state, onClose, onSuccess }: TimesheetDialogProps) {
+export default function TimesheetDialog({ state, onClose, onSuccess, projects: projectsProp, companyId: companyIdProp }: TimesheetDialogProps) {
   const [timesheet, setTimesheet]   = useState<Timesheet | undefined>(undefined)
   const [fetching, setFetching]     = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
-  const [projects, setProjects]     = useState<Project[]>([])
-  const [companyId, setCompanyId]   = useState<string | null>(null)
+  const [projects, setProjects]     = useState<Project[]>(projectsProp ?? [])
+  const [companyId, setCompanyId]   = useState<string | null>(companyIdProp ?? null)
 
   const supabase = useMemo(() => createClient(), [])
 
@@ -34,6 +36,11 @@ export default function TimesheetDialog({ state, onClose, onSuccess }: Timesheet
   // Load user's company projects (once per dialog open)
   useEffect(() => {
     if (!state.open) return
+    if (projectsProp && companyIdProp) {
+      setProjects(projectsProp)
+      setCompanyId(companyIdProp)
+      return
+    }
     let cancelled = false
 
     async function loadProjects() {
@@ -66,7 +73,7 @@ export default function TimesheetDialog({ state, onClose, onSuccess }: Timesheet
 
     loadProjects()
     return () => { cancelled = true }
-  }, [state.open, supabase])
+  }, [state.open, supabase, projectsProp, companyIdProp])
 
   useEffect(() => {
     if (!editId) {

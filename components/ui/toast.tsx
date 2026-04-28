@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, createContext, useContext } from 'react'
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react'
 
-/* ÔöÇÔöÇ Types ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+/* Types */
 
 type ToastVariant = 'error' | 'warning' | 'success' | 'info'
 
@@ -18,7 +18,7 @@ interface ToastContextValue {
   toast: (message: string, variant?: ToastVariant, durationMs?: number) => void
 }
 
-/* ÔöÇÔöÇ Context ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+/* Context */
 
 const ToastContext = createContext<ToastContextValue | null>(null)
 
@@ -28,7 +28,7 @@ export function useToast() {
   return ctx
 }
 
-/* ÔöÇÔöÇ Provider + Renderer ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+/* Provider + Renderer */
 
 let nextId = 0
 
@@ -48,7 +48,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ toast }}>
       {children}
 
-      {/* Toast container ÔÇö fixed bottom-right */}
+      {/* Toast container — fixed bottom-right */}
       <div className="fixed bottom-5 right-5 z-[9999] flex flex-col-reverse gap-2.5 pointer-events-none">
         {items.map(item => (
           <ToastCard key={item.id} item={item} onDismiss={dismiss} />
@@ -58,7 +58,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-/* ÔöÇÔöÇ Individual toast card ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ */
+/* Individual toast card */
 
 const VARIANT_STYLES: Record<ToastVariant, {
   bg: string; border: string; icon: React.ReactNode; iconColor: string

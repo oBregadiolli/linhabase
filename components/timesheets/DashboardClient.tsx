@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Timesheet, Project } from '@/lib/types/database.types'
 import { isoDate, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from '@/lib/utils/time'
@@ -33,45 +33,97 @@ interface DashboardClientProps {
   userEmail?: string
   avatarUrl?: string | null
   isAdmin?: boolean
+  companyId: string
+  initialProjects: Project[]
 }
 
-export default function DashboardClient({ userId, userName, userEmail, avatarUrl, isAdmin }: DashboardClientProps) {
+function parseViewFromSearch(search: string): View {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  const v = params.get('view')
+  return VALID_VIEWS.includes(v as View) ? (v as View) : 'month'
+}
+
+function parseDateFromSearch(search: string): Date {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  const d = params.get('date')
+  if (d) {
+    const p = new Date(`${d}T12:00:00`)
+    if (!isNaN(p.getTime())) return p
+  }
+  return new Date()
+}
+
+export default function DashboardClient({ userId, userName, userEmail, avatarUrl, isAdmin, companyId, initialProjects }: DashboardClientProps) {
   const searchParams = useSearchParams()
-  const router       = useRouter()
   const pathname     = usePathname()
 
   // ── State from URL ─────────────────────────────────────────────────────────
-  const view: View = useMemo(() => {
+  const urlView: View = useMemo(() => {
     const v = searchParams.get('view')
     return VALID_VIEWS.includes(v as View) ? (v as View) : 'month'
   }, [searchParams])
 
-  const currentDate: Date = useMemo(() => {
+  const urlDate: Date = useMemo(() => {
     const d = searchParams.get('date')
     if (d) { const p = new Date(`${d}T12:00:00`); if (!isNaN(p.getTime())) return p }
     return new Date()
   }, [searchParams])
 
-  // ── URL updater ────────────────────────────────────────────────────────────
-  const updateParams = useCallback((patch: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams.toString())
+  // Local state to prevent Next router navigation on tab/date changes.
+  const [view, setViewState] = useState<View>(() => (typeof window === 'undefined' ? urlView : parseViewFromSearch(window.location.search)))
+  const [currentDate, setCurrentDateState] = useState<Date>(() => (typeof window === 'undefined' ? urlDate : parseDateFromSearch(window.location.search)))
+
+  useEffect(() => {
+    setViewState(urlView)
+    setCurrentDateState(urlDate)
+  }, [urlView, urlDate])
+
+  useEffect(() => {
+    // Back/forward support when we manage history ourselves
+    function onPopState() {
+      setViewState(parseViewFromSearch(window.location.search))
+      setCurrentDateState(parseDateFromSearch(window.location.search))
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  const updateParamsClientSide = useCallback((patch: Record<string, string | null>) => {
+    const params = new URLSearchParams(window.location.search)
     params.delete('dialog'); params.delete('dialogId'); params.delete('dialogDate'); params.delete('dialogStart')
     for (const [k, v] of Object.entries(patch)) v === null ? params.delete(k) : params.set(k, v)
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }, [searchParams, router, pathname])
+    const qs = params.toString()
+    const nextUrl = `${pathname}${qs ? `?${qs}` : ''}`
+    window.history.replaceState(null, '', nextUrl)
+  }, [pathname])
 
   // ── Navigation ─────────────────────────────────────────────────────────────
-  function setView(v: View) { updateParams({ view: v }) }
+  function setView(v: View) {
+    setViewState(v)
+    updateParamsClientSide({ view: v })
+  }
 
   function navigate(dir: 'prev' | 'next') {
     const d = new Date(currentDate)
     if (view === 'month' || view === 'table') d.setMonth(d.getMonth() + (dir === 'next' ? 1 : -1))
     else if (view === 'week') d.setDate(d.getDate() + (dir === 'next' ? 7 : -7))
     else d.setDate(d.getDate() + (dir === 'next' ? 1 : -1))
-    updateParams({ date: isoDate(d) })
+    setCurrentDateState(d)
+    updateParamsClientSide({ date: isoDate(d) })
   }
 
-  function setDate(d: Date) { updateParams({ date: isoDate(d) }) }
+  function setDate(d: Date) {
+    setCurrentDateState(d)
+    updateParamsClientSide({ date: isoDate(d) })
+  }
+
+  function navigateXY(dir: 'prev' | 'next', period: 'month' | 'week') {
+    const d = new Date(currentDate)
+    if (period === 'month') d.setMonth(d.getMonth() + (dir === 'next' ? 1 : -1))
+    else d.setDate(d.getDate() + (dir === 'next' ? 7 : -7))
+    setCurrentDateState(d)
+    updateParamsClientSide({ date: isoDate(d) })
+  }
 
   // ── Dialog ─────────────────────────────────────────────────────────────────
   const [dialogState, setDialogState] = useState<DialogState>(() => {
@@ -112,30 +164,8 @@ export default function DashboardClient({ userId, userName, userEmail, avatarUrl
   const fetchGenRef                 = useRef(0)
   const supabase = useMemo(() => createClient(), [])
 
-  // ── Company projects (for project_id → name resolution) ───────────────────
-  const [projects, setProjects] = useState<Project[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-    async function loadProjects() {
-      const { data: membership } = await supabase
-        .from('company_members')
-        .select('company_id')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .limit(1)
-        .maybeSingle()
-      if (!membership || cancelled) return
-      const { data } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('company_id', membership.company_id)
-        .order('name', { ascending: true })
-      if (!cancelled && data) setProjects(data as Project[])
-    }
-    loadProjects()
-    return () => { cancelled = true }
-  }, [supabase, userId])
+  // ── Company projects (server-provided to avoid RLS surprises on the client) ──
+  const [projects] = useState<Project[]>(initialProjects)
 
   const projectMap = useMemo(() => {
     const map = new Map<string, { name: string; color: string | null }>()
@@ -284,7 +314,7 @@ export default function DashboardClient({ userId, userName, userEmail, avatarUrl
                       userId={userId}
                       projects={projects}
                       currentDate={currentDate}
-                      onNavigate={navigate}
+                      onNavigate={navigateXY}
                       onTimesheetAdded={fetchTimesheets}
                       openEditDialog={openEdit}
                     />
@@ -296,7 +326,13 @@ export default function DashboardClient({ userId, userName, userEmail, avatarUrl
         </div>
       </div>
 
-      <TimesheetDialog state={dialogState} onClose={closeDialog} onSuccess={handleDialogSuccess} />
+      <TimesheetDialog
+        state={dialogState}
+        onClose={closeDialog}
+        onSuccess={handleDialogSuccess}
+        projects={projects}
+        companyId={companyId}
+      />
     </>
   )
 }

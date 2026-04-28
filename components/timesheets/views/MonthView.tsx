@@ -16,11 +16,9 @@ interface MonthViewProps {
   onSuccess: () => void
 }
 
-const WEEK_DAYS    = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-const SNAP_MINUTES = 15
-const MIN_DURATION = 15
+const WEEK_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
-type InteractionMode = 'move' | 'resize-top' | 'resize-bottom'
+type InteractionMode = 'move'
 
 interface DragInfo {
   id: string
@@ -28,33 +26,13 @@ interface DragInfo {
   date: string
   originalDate: string
   mode: InteractionMode
-  /** minutes-since-midnight (only meaningful for resize modes) */
   startMin: number
   endMin: number
-}
-
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n))
 }
 
 function timeToMinutes(time: string) {
   const [h, m] = time.split(':').map(Number)
   return h * 60 + m
-}
-
-function minutesToTimeStr(min: number) {
-  const clamped = clamp(min, 0, 23 * 60 + 59)
-  const h = Math.floor(clamped / 60) % 24
-  const m = clamped % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
-
-function formatDurationMin(minutes: number) {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  if (h === 0) return `${m}min`
-  if (m === 0) return `${h}h`
-  return `${h}h${m}min`
 }
 
 export default function MonthView({ timesheets, projectMap, currentDate, onNewForDate, onEdit, onDayClick, onSuccess }: MonthViewProps) {
@@ -80,49 +58,34 @@ export default function MonthView({ timesheets, projectMap, currentDate, onNewFo
   const [drag, setDrag]     = useState<DragInfo | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const dragging    = useRef(false)
-  const didMove     = useRef(false)
-  const dragRef     = useRef<DragInfo | null>(null)
-  const dragTsRef   = useRef<Timesheet | null>(null)
-  const modeRef     = useRef<InteractionMode>('move')
+  const dragging  = useRef(false)
+  const didMove   = useRef(false)
+  const dragRef   = useRef<DragInfo | null>(null)
+  const dragTsRef = useRef<Timesheet | null>(null)
 
-  // For move: track pointer start position to detect which cell we're over
-  const dragStart   = useRef<{ x: number; y: number } | null>(null)
-  const cellRefs    = useRef<(HTMLDivElement | null)[]>([])
-
-  // For resize: track pointer start Y and original times
-  const resizeStartY  = useRef(0)
-  const origStartMin  = useRef(0)
-  const origEndMin    = useRef(0)
-
-  // Pixels per minute for resize. We use 100px per 60 min (≈ cell height heuristic).
-  // We'll refine this by measuring cell height dynamically.
-  const cellHeightRef = useRef(100)
+  // For move: track pointer start position
+  const dragStart = useRef<{ x: number; y: number } | null>(null)
+  const cellRefs  = useRef<(HTMLDivElement | null)[]>([])
 
   const daysIso = useMemo(() => days.map(isoDate), [days])
 
   // ── pointer-down ─────────────────────────────────────────────────────────
-  const handlePointerDown = useCallback((e: React.PointerEvent, ts: Timesheet, mode: InteractionMode) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent, ts: Timesheet) => {
     if (e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
 
-    dragging.current   = true
-    didMove.current    = false
-    modeRef.current    = mode
-    dragTsRef.current  = ts
-
-    origStartMin.current = timeToMinutes(ts.start_time)
-    origEndMin.current   = timeToMinutes(ts.end_time)
-    resizeStartY.current = e.clientY
+    dragging.current  = true
+    didMove.current   = false
+    dragTsRef.current = ts
 
     const info: DragInfo = {
       id: ts.id,
       date: ts.date,
       originalDate: ts.date,
-      mode,
-      startMin: origStartMin.current,
-      endMin:   origEndMin.current,
+      mode: 'move',
+      startMin: timeToMinutes(ts.start_time),
+      endMin:   timeToMinutes(ts.end_time),
     }
     dragRef.current = info
     setDrag(info)
@@ -142,49 +105,23 @@ export default function MonthView({ timesheets, projectMap, currentDate, onNewFo
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didMove.current = true
     }
 
-    const mode = modeRef.current
-
-    if (mode === 'move') {
-      // Hit-test cells to find target day
-      let targetIdx = -1
-      for (let i = 0; i < cellRefs.current.length; i++) {
-        const el = cellRefs.current[i]
-        if (!el) continue
-        const rect = el.getBoundingClientRect()
-        if (e.clientX >= rect.left && e.clientX < rect.right &&
-            e.clientY >= rect.top  && e.clientY < rect.bottom) {
-          targetIdx = i
-          break
-        }
+    // Hit-test cells to find target day
+    let targetIdx = -1
+    for (let i = 0; i < cellRefs.current.length; i++) {
+      const el = cellRefs.current[i]
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (e.clientX >= rect.left && e.clientX < rect.right &&
+          e.clientY >= rect.top  && e.clientY < rect.bottom) {
+        targetIdx = i
+        break
       }
-      if (targetIdx < 0) return
-      const targetIso = daysIso[clamp(targetIdx, 0, daysIso.length - 1)]
-      const updated = dragRef.current ? { ...dragRef.current, date: targetIso } : null
-      dragRef.current = updated
-      setDrag(updated)
-
-    } else {
-      // Resize: compute delta in minutes proportional to vertical movement
-      const deltaY    = e.clientY - resizeStartY.current
-      const pxPerMin  = cellHeightRef.current / 60
-      const deltaMins = Math.round(deltaY / pxPerMin)
-      const snapped   = Math.round(deltaMins / SNAP_MINUTES) * SNAP_MINUTES
-
-      let newStart = origStartMin.current
-      let newEnd   = origEndMin.current
-
-      if (mode === 'resize-bottom') {
-        newEnd = origEndMin.current + snapped
-        newEnd = Math.max(origStartMin.current + MIN_DURATION, Math.min(23 * 60, newEnd))
-      } else if (mode === 'resize-top') {
-        newStart = origStartMin.current + snapped
-        newStart = Math.min(origEndMin.current - MIN_DURATION, Math.max(0, newStart))
-      }
-
-      const updated = dragRef.current ? { ...dragRef.current, startMin: newStart, endMin: newEnd } : null
-      dragRef.current = updated
-      setDrag(updated)
     }
+    if (targetIdx < 0) return
+    const targetIso = daysIso[Math.max(0, Math.min(daysIso.length - 1, targetIdx))]
+    const updated = dragRef.current ? { ...dragRef.current, date: targetIso } : null
+    dragRef.current = updated
+    setDrag(updated)
   }, [daysIso])
 
   // ── pointer-up ────────────────────────────────────────────────────────────
@@ -201,25 +138,18 @@ export default function MonthView({ timesheets, projectMap, currentDate, onNewFo
 
     if (!d || !ts) { setDrag(null); return }
 
-    const noChange =
-      !didMove.current ||
-      (d.mode === 'move' && d.date === d.originalDate) ||
-      (d.mode !== 'move' && d.startMin === origStartMin.current && d.endMin === origEndMin.current)
+    const noChange = !didMove.current || d.date === d.originalDate
 
     if (noChange) { setDrag(null); return }
 
-    // ── Overlap check ─────────────────────────────────────────────────────
-    const targetDate = d.mode === 'move' ? d.date : d.originalDate
-    const targetDayTs = timesheets.filter(t => t.date === targetDate)
-
-    const checkStart = d.startMin
-    const checkEnd   = d.endMin
+    // Overlap check (move only — target day timesheets)
+    const targetDayTs = timesheets.filter(t => t.date === d.date)
 
     const hasOverlap = targetDayTs.some(other => {
       if (other.id === ts.id) return false
       const otherStart = timeToMinutes(other.start_time)
       const otherEnd   = timeToMinutes(other.end_time)
-      return checkStart < otherEnd && checkEnd > otherStart
+      return d.startMin < otherEnd && d.endMin > otherStart
     })
 
     if (hasOverlap) {
@@ -227,23 +157,14 @@ export default function MonthView({ timesheets, projectMap, currentDate, onNewFo
       toast('Horário já ocupado neste período.', 'info', 2000)
       return
     }
-    // ─────────────────────────────────────────────────────────────────────
+
 
     setSaving(true)
     const supabase = createClient()
 
-    const updatePayload: Record<string, unknown> = {}
-    if (d.mode === 'move') {
-      updatePayload.date = d.date
-    } else {
-      updatePayload.start_time      = minutesToTimeStr(d.startMin)
-      updatePayload.end_time        = minutesToTimeStr(d.endMin)
-      updatePayload.duration_minutes = d.endMin - d.startMin
-    }
-
     const { error } = await supabase
       .from('timesheets')
-      .update(updatePayload)
+      .update({ date: d.date })
       .eq('id', ts.id)
 
     setSaving(false)
@@ -271,12 +192,9 @@ export default function MonthView({ timesheets, projectMap, currentDate, onNewFo
   /* Cursor for body while dragging */
   useEffect(() => {
     if (!drag) return
-    const cls = drag.mode === 'resize-top'    ? 'cursor-n-resize'
-              : drag.mode === 'resize-bottom' ? 'cursor-s-resize'
-              : 'cursor-grabbing'
-    document.body.classList.add(cls, 'select-none')
-    return () => { document.body.classList.remove(cls, 'select-none') }
-  }, [drag?.mode, !!drag])
+    document.body.classList.add('cursor-grabbing', 'select-none')
+    return () => { document.body.classList.remove('cursor-grabbing', 'select-none') }
+  }, [!!drag])
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -331,9 +249,6 @@ export default function MonthView({ timesheets, projectMap, currentDate, onNewFo
                   const pName        = resolveProjectName(t.project_id, projectMap)
                   const c            = getProjectColor(pName)
                   const isDragging   = drag?.id === t.id
-                  const displayStart = isDragging ? drag!.startMin : timeToMinutes(t.start_time)
-                  const displayEnd   = isDragging ? drag!.endMin   : timeToMinutes(t.end_time)
-                  const durationMin  = displayEnd - displayStart
 
                   return (
                     <div
@@ -344,16 +259,10 @@ export default function MonthView({ timesheets, projectMap, currentDate, onNewFo
                       }`}
                       style={{ backgroundColor: c.bg, borderLeft: `3px solid ${c.border}`, color: c.text }}
                     >
-                      {/* Top resize handle */}
+                      {/* Body — move only (no resize handles in month view) */}
                       <div
-                        className="absolute top-0 left-0 right-0 h-[5px] cursor-n-resize z-10 group-hover:bg-[#3730A3]/10 rounded-t transition-colors"
-                        onPointerDown={e => handlePointerDown(e, t, 'resize-top')}
-                      />
-
-                      {/* Body (move + click to edit) */}
-                      <div
-                        className={`px-1.5 py-0.5 ${isDragging && drag?.mode === 'move' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                        onPointerDown={e => handlePointerDown(e, t, 'move')}
+                        className={`px-1.5 py-0.5 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                        onPointerDown={e => handlePointerDown(e, t)}
                         onClick={e => {
                           if (!didMove.current && !drag) {
                             e.stopPropagation()
@@ -362,25 +271,7 @@ export default function MonthView({ timesheets, projectMap, currentDate, onNewFo
                         }}
                       >
                         <span className="truncate block">{pName}</span>
-                        {isDragging && drag!.mode !== 'move' && (
-                          <span className="text-[10px] opacity-70 block">
-                            {minutesToTimeStr(displayStart)}–{minutesToTimeStr(displayEnd)}
-                          </span>
-                        )}
                       </div>
-
-                      {/* Bottom resize handle */}
-                      <div
-                        className="absolute bottom-0 left-0 right-0 h-[5px] cursor-s-resize z-10 group-hover:bg-[#3730A3]/10 rounded-b transition-colors"
-                        onPointerDown={e => handlePointerDown(e, t, 'resize-bottom')}
-                      />
-
-                      {/* Tooltip during resize */}
-                      {isDragging && drag!.mode !== 'move' && (
-                        <div className="absolute -top-7 left-0 z-50 pointer-events-none bg-gray-900 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap">
-                          {minutesToTimeStr(displayStart)}–{minutesToTimeStr(displayEnd)} · {formatDurationMin(durationMin)}
-                        </div>
-                      )}
                     </div>
                   )
                 })}

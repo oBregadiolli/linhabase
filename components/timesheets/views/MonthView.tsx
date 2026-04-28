@@ -218,11 +218,7 @@ export default function MonthView({ timesheets, projectMap, currentDate, onNewFo
           return (
             <div
               key={i}
-              ref={el => {
-                cellRefs.current[i] = el
-                // Measure cell height for resize pixel-to-minute conversion
-                if (el) cellHeightRef.current = el.getBoundingClientRect().height || 100
-              }}
+              ref={el => { cellRefs.current[i] = el }}
               className={`min-h-[100px] p-1.5 border-b border-gray-100 flex flex-col gap-1 select-none transition-colors ${
                 !isCurrentMonth
                   ? 'bg-gray-50/60'

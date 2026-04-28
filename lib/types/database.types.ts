@@ -12,6 +12,7 @@ export interface Database {
       profiles: {
         Row: {
           id: string
+          code: string
           name: string
           email: string
           role: 'user' | 'admin'
@@ -23,6 +24,7 @@ export interface Database {
         }
         Insert: {
           id: string
+          code?: string
           name?: string
           email?: string
           role?: 'user' | 'admin'
@@ -34,6 +36,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          code?: string
           name?: string
           email?: string
           role?: 'user' | 'admin'
@@ -63,6 +66,7 @@ export interface Database {
       timesheets: {
         Row: {
           id: string
+          code: string
           user_id: string
           date: string
           start_time: string
@@ -78,6 +82,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          code?: string
           user_id: string
           date: string
           start_time: string
@@ -93,6 +98,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          code?: string
           user_id?: string
           date?: string
           start_time?: string
@@ -134,6 +140,7 @@ export interface Database {
       companies: {
         Row: {
           id: string
+          code: string
           name: string
           owner_id: string
           slug: string | null
@@ -145,6 +152,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          code?: string
           name: string
           owner_id: string
           slug?: string | null
@@ -156,6 +164,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          code?: string
           name?: string
           owner_id?: string
           slug?: string | null
@@ -258,6 +267,7 @@ export interface Database {
       projects: {
         Row: {
           id: string
+          code: string
           company_id: string
           name: string
           color: string | null
@@ -267,6 +277,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          code?: string
           company_id: string
           name: string
           color?: string | null
@@ -276,6 +287,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          code?: string
           company_id?: string
           name?: string
           color?: string | null

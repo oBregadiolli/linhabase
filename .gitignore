@@ -48,3 +48,6 @@ node_modules/
 /playwright/.cache/
 /playwright/.auth/
 /tests/.auth/
+
+# personal docs
+.joao/

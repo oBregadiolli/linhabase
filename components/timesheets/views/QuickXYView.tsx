@@ -137,24 +137,42 @@ function QuickEntry({
 
     setSaving(true)
     setConflict(null)
-    const startTime = '08:00:00'
-    const totalMinutes = Math.round(h * 60)
-    const endHour = Math.floor((totalMinutes + 8 * 60) / 60) % 24
-    const endMin = (totalMinutes + 8 * 60) % 60
-    const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`
 
-    const hit = await checkOverlap(startTime, endTime)
-    if (hit) {
-      setConflict(hit)
-      setSaving(false)
-      return
+    const totalMinutes = Math.round(h * 60)
+
+    // For new entries: auto-stack after the latest end_time of the day.
+    // For edits: keep the existing fixed-start behaviour (editing opens the dialog anyway).
+    let startMinutes = 8 * 60 // default 08:00
+
+    if (!existingId) {
+      const { data: dayTs } = await supabase
+        .from('timesheets')
+        .select('end_time')
+        .eq('user_id', userId)
+        .eq('date', date)
+        .order('end_time', { ascending: false })
+        .limit(1)
+
+      if (dayTs && dayTs.length > 0 && dayTs[0].end_time) {
+        const [hh, mm] = (dayTs[0].end_time as string).split(':').map(Number)
+        startMinutes = hh * 60 + mm
+      }
     }
 
+    const startHour = Math.floor(startMinutes / 60) % 24
+    const startMin  = startMinutes % 60
+    const startTime = `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`
+
+    const endTotalMin = startMinutes + totalMinutes
+    const endHour = Math.floor(endTotalMin / 60) % 24
+    const endMin  = endTotalMin % 60
+    const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`
+
     const { error } = await persist(startTime, endTime, totalMinutes)
-    // DB-level exclusion constraint: surface as conflict UI (race conditions / other writers)
+    // Fallback: DB constraint fired (race condition / another writer)
     if (error) {
-      const hit2 = await checkOverlap(startTime, endTime)
-      if (hit2) setConflict(hit2)
+      const hit = await checkOverlap(startTime, endTime)
+      if (hit) setConflict(hit)
       setSaving(false)
       return
     }

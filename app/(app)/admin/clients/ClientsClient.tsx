@@ -3,86 +3,67 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft, FolderOpen, Plus, Pencil, Power, PowerOff,
-  XCircle, Check, X, Palette, Search, MoreVertical,
-  Calendar, Hash, Building2
+  Building2, Plus, Pencil, Power, PowerOff,
+  XCircle, Check, X, Search, Calendar, Hash, Copy, CheckCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Project, Client } from '@/lib/types/database.types'
-import { createProject, updateProject, toggleProjectActive } from './actions'
+import type { Client } from '@/lib/types/database.types'
+import { createClientAction, updateClientAction, toggleClientActive } from './actions'
 
-// ── Preset colors ─────────────────────────────────────────────
-const COLOR_PRESETS = [
-  '#1D4ED8', '#0891B2', '#059669', '#CA8A04',
-  '#DC2626', '#DB2777', '#7C3AED', '#EA580C',
-  '#475569', '#0D9488',
-]
+// ── Props ───────────────────────────────────────────────────────
 
-interface ProjectsClientProps {
+interface ClientsClientProps {
   companyName: string
-  projects: Project[]
-  clients?: Client[]
+  clients: Client[]
   /** When true, skip the outer wrapper & topbar (rendered by AdminShell) */
   embedded?: boolean
 }
 
-export default function ProjectsClient({ companyName, projects, clients = [], embedded }: ProjectsClientProps) {
+export default function ClientsClient({ companyName, clients, embedded }: ClientsClientProps) {
   const router = useRouter()
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
 
-  const activeProjects = projects.filter(p => p.active)
-  const inactiveProjects = projects.filter(p => !p.active)
+  const activeClients = clients.filter(c => c.active)
+  const inactiveClients = clients.filter(c => !c.active)
 
-  // Filtered projects
-  // Build client lookup for display
-  const clientMap = new Map(clients.map(c => [c.id, c]))
-
-  const filteredProjects = projects.filter(p => {
+  // Filtered clients
+  const filteredClients = clients.filter(c => {
     const q = search.toLowerCase()
     const matchesSearch = search === '' ||
-      p.name.toLowerCase().includes(q) ||
-      p.code.toLowerCase().includes(q)
+      c.description.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q)
     const matchesStatus = filterStatus === 'all' ||
-      (filterStatus === 'active' && p.active) ||
-      (filterStatus === 'inactive' && !p.active)
+      (filterStatus === 'active' && c.active) ||
+      (filterStatus === 'inactive' && !c.active)
     return matchesSearch && matchesStatus
   })
 
   function handleRefresh() {
     setShowCreateModal(false)
-    setEditingProject(null)
+    setEditingClient(null)
     router.refresh()
   }
 
   return (
     <div className={embedded ? 'flex flex-col flex-1 min-w-0 overflow-hidden' : 'flex h-screen bg-[#F3F4F6] overflow-hidden'}>
-      <div className={embedded ? 'flex flex-col flex-1 min-w-0 overflow-hidden' : 'flex flex-col flex-1 min-w-0 overflow-hidden'}>
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
         {/* Topbar — hidden when embedded in AdminShell */}
         {!embedded && (
         <header className="shrink-0 flex items-center justify-between gap-4 bg-white border-b border-gray-200 px-6 h-14">
-          <div className="flex items-center gap-3">
-            <a
-              href="/admin/timesheets"
-              className="p-1.5 rounded-md text-gray-400 hover:text-[#1D4ED8] hover:bg-blue-50 transition-colors duration-150"
-              title="Voltar"
-            >
-              <ArrowLeft className="h-4.5 w-4.5" />
-            </a>
-            <div>
-              <h1 className="text-sm font-semibold text-gray-900">Projetos</h1>
-              <p className="text-[11px] text-gray-400">{companyName}</p>
-            </div>
+          <div>
+            <h1 className="text-sm font-semibold text-gray-900">Clientes</h1>
+            <p className="text-[11px] text-gray-400">{companyName}</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D4ED8] px-3.5 py-2 text-sm font-semibold text-white hover:bg-[#1e40af] transition-colors duration-150 cursor-pointer"
           >
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Novo Projeto</span>
+            <span className="hidden sm:inline">Novo Cliente</span>
           </button>
         </header>
         )}
@@ -94,12 +75,12 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                  <FolderOpen className="h-5 w-5 text-[#1D4ED8]" />
+                <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+                  <Building2 className="h-5 w-5 text-violet-600" />
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Total</p>
-                  <p className="text-2xl font-bold text-gray-900">{projects.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">{clients.length}</p>
                 </div>
               </div>
 
@@ -109,7 +90,7 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Ativos</p>
-                  <p className="text-2xl font-bold text-emerald-600">{activeProjects.length}</p>
+                  <p className="text-2xl font-bold text-emerald-600">{activeClients.length}</p>
                 </div>
               </div>
 
@@ -119,7 +100,7 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Inativos</p>
-                  <p className="text-2xl font-bold text-gray-400">{inactiveProjects.length}</p>
+                  <p className="text-2xl font-bold text-gray-400">{inactiveClients.length}</p>
                 </div>
               </div>
             </div>
@@ -133,7 +114,7 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar projeto..."
+                  placeholder="Buscar por código ou descrição..."
                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder:text-gray-400 outline-none focus:border-[#1D4ED8] transition-colors"
                 />
               </div>
@@ -156,14 +137,14 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
                 ))}
               </div>
 
-              {/* New Project button (embedded) */}
+              {/* New Client button (embedded) */}
               {embedded && (
                 <button
                   onClick={() => setShowCreateModal(true)}
                   className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[#1D4ED8] px-3.5 py-2 text-sm font-semibold text-white hover:bg-[#1e40af] transition-colors duration-150 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
-                  Novo Projeto
+                  Novo Cliente
                 </button>
               )}
             </div>
@@ -174,10 +155,10 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
                 <thead>
                   <tr className="bg-gray-50/80 border-b border-gray-200">
                     <th className="text-left px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                      Projeto
+                      Código
                     </th>
-                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">
-                      Cor
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                      Descrição
                     </th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                       Status
@@ -191,24 +172,24 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredProjects.length === 0 ? (
+                  {filteredClients.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-5 py-12 text-center">
-                        <FolderOpen className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                        <Building2 className="h-8 w-8 text-gray-300 mx-auto mb-2" />
                         <p className="text-sm text-gray-500 font-medium">
-                          {search ? 'Nenhum projeto encontrado.' : 'Nenhum projeto cadastrado.'}
+                          {search ? 'Nenhum cliente encontrado.' : 'Nenhum cliente cadastrado.'}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
-                          {search ? 'Tente outro termo de busca.' : 'Clique em "Novo Projeto" para começar.'}
+                          {search ? 'Tente outro termo de busca.' : 'Clique em "Novo Cliente" para começar.'}
                         </p>
                       </td>
                     </tr>
                   ) : (
-                    filteredProjects.map(project => (
-                      <ProjectRow
-                        key={project.id}
-                        project={project}
-                        onEdit={() => setEditingProject(project)}
+                    filteredClients.map(client => (
+                      <ClientRow
+                        key={client.id}
+                        client={client}
+                        onEdit={() => setEditingClient(client)}
                         onRefresh={handleRefresh}
                       />
                     ))
@@ -217,9 +198,9 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
               </table>
 
               {/* Footer */}
-              {filteredProjects.length > 0 && (
+              {filteredClients.length > 0 && (
                 <div className="px-5 py-2.5 bg-gray-50/60 border-t border-gray-100 text-[11px] text-gray-400">
-                  {filteredProjects.length} {filteredProjects.length === 1 ? 'projeto' : 'projetos'}
+                  {filteredClients.length} {filteredClients.length === 1 ? 'cliente' : 'clientes'}
                   {filterStatus !== 'all' && ` (filtro: ${filterStatus === 'active' ? 'ativos' : 'inativos'})`}
                   {search && ` · busca: "${search}"`}
                 </div>
@@ -232,13 +213,12 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
 
       {/* Modals */}
       {showCreateModal && (
-        <ProjectModal clients={clients} onClose={() => setShowCreateModal(false)} onSuccess={handleRefresh} />
+        <ClientModal onClose={() => setShowCreateModal(false)} onSuccess={handleRefresh} />
       )}
-      {editingProject && (
-        <ProjectModal
-          project={editingProject}
-          clients={clients}
-          onClose={() => setEditingProject(null)}
+      {editingClient && (
+        <ClientModal
+          client={editingClient}
+          onClose={() => setEditingClient(null)}
           onSuccess={handleRefresh}
         />
       )}
@@ -246,20 +226,21 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
   )
 }
 
-// ── Project Row (table) ───────────────────────────────────────
+// ── Client Row (table) ────────────────────────────────────────
 
-function ProjectRow({
-  project, onEdit, onRefresh,
+function ClientRow({
+  client, onEdit, onRefresh,
 }: {
-  project: Project; onEdit: () => void; onRefresh: () => void
+  client: Client; onEdit: () => void; onRefresh: () => void
 }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   function handleToggle() {
     setError(null)
     startTransition(async () => {
-      const result = await toggleProjectActive(project.id, !project.active)
+      const result = await toggleClientActive(client.id, !client.active)
       if (result.success) {
         onRefresh()
       } else {
@@ -268,63 +249,65 @@ function ProjectRow({
     })
   }
 
-  const createdDate = new Date(project.created_at).toLocaleDateString('pt-BR', {
+  function handleCopyCode() {
+    navigator.clipboard.writeText(client.code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const createdDate = new Date(client.created_at).toLocaleDateString('pt-BR', {
     day: '2-digit', month: 'short', year: 'numeric',
   })
 
   return (
     <>
       <tr className={cn(
-        'group hover:bg-blue-50/30 transition-colors',
-        !project.active && 'opacity-60',
+        'group hover:bg-violet-50/30 transition-colors',
+        !client.active && 'opacity-60',
       )}>
-        {/* Project name + color */}
+        {/* Code */}
         <td className="px-5 py-3.5">
-          <div className="flex items-center gap-3">
-            <div
-              className="h-9 w-9 rounded-lg shrink-0 flex items-center justify-center shadow-sm"
-              style={{ backgroundColor: project.color || '#94a3b8' }}
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-9 rounded-lg bg-violet-100 shrink-0 flex items-center justify-center">
+              <Hash className="h-4 w-4 text-violet-600" />
+            </div>
+            <button
+              onClick={handleCopyCode}
+              className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold text-gray-800 hover:text-violet-700 transition-colors cursor-pointer"
+              title="Copiar código"
             >
-              <FolderOpen className="h-4 w-4 text-white" />
-            </div>
-            <div className="min-w-0">
-              <p className={cn(
-                'font-medium truncate',
-                project.active ? 'text-gray-900' : 'text-gray-500'
-              )}>
-                <span className="font-mono text-[11px] text-gray-400 mr-1.5">{project.code}</span>
-                {project.name}
-              </p>
-            </div>
+              {client.code}
+              {copied
+                ? <CheckCheck className="h-3 w-3 text-emerald-500" />
+                : <Copy className="h-3 w-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+              }
+            </button>
           </div>
         </td>
 
-        {/* Color swatch */}
-        <td className="px-4 py-3.5 hidden sm:table-cell">
-          <div className="flex items-center gap-2">
-            <span
-              className="h-4 w-4 rounded-full border border-gray-100 shadow-sm shrink-0"
-              style={{ backgroundColor: project.color || '#94a3b8' }}
-            />
-            <span className="text-xs text-gray-400 font-mono uppercase">
-              {project.color || '#94a3b8'}
-            </span>
-          </div>
+        {/* Description */}
+        <td className="px-4 py-3.5">
+          <p className={cn(
+            'font-medium truncate max-w-xs',
+            client.active ? 'text-gray-900' : 'text-gray-500'
+          )}>
+            {client.description}
+          </p>
         </td>
 
         {/* Status */}
         <td className="px-4 py-3.5">
           <span className={cn(
             'inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1',
-            project.active
+            client.active
               ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60'
               : 'bg-gray-100 text-gray-500 ring-1 ring-gray-200/60'
           )}>
             <span className={cn(
               'h-1.5 w-1.5 rounded-full',
-              project.active ? 'bg-emerald-500' : 'bg-gray-400'
+              client.active ? 'bg-emerald-500' : 'bg-gray-400'
             )} />
-            {project.active ? 'Ativo' : 'Inativo'}
+            {client.active ? 'Ativo' : 'Inativo'}
           </span>
         </td>
 
@@ -348,16 +331,16 @@ function ProjectRow({
             </button>
             <button
               onClick={handleToggle}
-              title={project.active ? 'Inativar' : 'Ativar'}
+              title={client.active ? 'Inativar' : 'Ativar'}
               className={cn(
                 'p-2 rounded-lg transition-colors disabled:opacity-40 cursor-pointer',
-                project.active
+                client.active
                   ? 'text-gray-400 hover:text-red-500 hover:bg-red-50'
                   : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'
               )}
               disabled={isPending}
             >
-              {project.active ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+              {client.active ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
             </button>
           </div>
         </td>
@@ -377,17 +360,16 @@ function ProjectRow({
   )
 }
 
-// ── Project Modal (create / edit) ─────────────────────────────
+// ── Client Modal (create / edit) ──────────────────────────────
 
-function ProjectModal({
-  project, onClose, onSuccess, clients = [],
+function ClientModal({
+  client, onClose, onSuccess,
 }: {
-  project?: Project; clients?: Client[]; onClose: () => void; onSuccess: () => void
+  client?: Client; onClose: () => void; onSuccess: () => void
 }) {
-  const isEdit = !!project
-  const [name, setName] = useState(project?.name ?? '')
-  const [color, setColor] = useState(project?.color ?? COLOR_PRESETS[0])
-  const [clientId, setClientId] = useState<string>(project?.client_id ?? '')
+  const isEdit = !!client
+  const [description, setDescription] = useState(client?.description ?? '')
+  const [code, setCode] = useState(client?.code ?? '')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -397,8 +379,8 @@ function ProjectModal({
 
     startTransition(async () => {
       const result = isEdit
-        ? await updateProject(project!.id, name, color, clientId || null)
-        : await createProject(name, color, clientId || null)
+        ? await updateClientAction(client!.id, description, code)
+        : await createClientAction(description, code || undefined)
 
       if (result.success) {
         onSuccess()
@@ -417,7 +399,7 @@ function ProjectModal({
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-900">
-              {isEdit ? 'Editar Projeto' : 'Novo Projeto'}
+              {isEdit ? 'Editar Cliente' : 'Novo Cliente'}
             </h2>
             <button
               onClick={onClose}
@@ -427,106 +409,65 @@ function ProjectModal({
             </button>
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {isEdit ? 'Atualize o nome e a cor do projeto.' : 'Defina o nome e a cor para identificar o projeto.'}
+            {isEdit ? 'Atualize a descrição e o código do cliente.' : 'Defina a descrição do cliente. O código será gerado automaticamente se deixado vazio.'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="px-6 space-y-5">
-            {/* Name */}
+            {/* Description */}
             <div>
-              <label htmlFor="project-name" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Nome do projeto
+              <label htmlFor="client-description" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Descrição
               </label>
               <input
-                id="project-name"
+                id="client-description"
                 type="text"
                 required
-                maxLength={100}
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Ex: Desenvolvimento Frontend"
+                maxLength={200}
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Ex: Empresa ABC Ltda."
                 className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors"
                 disabled={isPending}
                 autoFocus
               />
             </div>
 
-            {/* Color */}
+            {/* Code */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="client-code" className="block text-sm font-medium text-gray-700 mb-1.5">
                 <div className="flex items-center gap-1.5">
-                  <Palette className="h-3.5 w-3.5" />
-                  Cor de identificação
+                  <Hash className="h-3.5 w-3.5" />
+                  Código
                 </div>
               </label>
-              <div className="flex flex-wrap gap-2">
-                {COLOR_PRESETS.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setColor(c)}
-                    className={cn(
-                      'h-8 w-8 rounded-lg transition-all duration-150 flex items-center justify-center cursor-pointer',
-                      color === c ? 'ring-2 ring-offset-2 ring-[#1D4ED8] scale-110' : 'hover:scale-105'
-                    )}
-                    style={{ backgroundColor: c }}
-                  >
-                    {color === c && <Check className="h-4 w-4 text-white" />}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2 mt-2.5">
-                <input
-                  type="color"
-                  value={color || '#1D4ED8'}
-                  onChange={e => setColor(e.target.value)}
-                  className="h-8 w-8 rounded-lg border border-gray-200 cursor-pointer p-0.5"
-                />
-                <span className="text-xs text-gray-400">Ou escolha uma cor personalizada</span>
-              </div>
+              <input
+                id="client-code"
+                type="text"
+                maxLength={8}
+                value={code}
+                onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                placeholder={isEdit ? client.code : 'Auto-gerado'}
+                className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 font-mono placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors uppercase tracking-wider"
+                disabled={isPending}
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                8 caracteres alfanuméricos. {isEdit ? '' : 'Deixe vazio para gerar automaticamente.'}
+              </p>
             </div>
-
-            {/* Client (optional) */}
-            {clients.length > 0 && (
-              <div>
-                <label htmlFor="project-client" className="block text-sm font-medium text-gray-700 mb-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Building2 className="h-3.5 w-3.5" />
-                    Cliente (opcional)
-                  </div>
-                </label>
-                <select
-                  id="project-client"
-                  value={clientId}
-                  onChange={e => setClientId(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors"
-                  disabled={isPending}
-                >
-                  <option value="">Sem cliente</option>
-                  {clients.filter(c => c.active).map(c => (
-                    <option key={c.id} value={c.id}>
-                      [{c.code}] {c.description}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             {/* Preview */}
             <div className="flex items-center gap-3 py-3 px-4 rounded-xl bg-gray-50 border border-gray-100">
-              <div
-                className="h-9 w-9 rounded-lg shrink-0 flex items-center justify-center shadow-sm"
-                style={{ backgroundColor: color || '#94a3b8' }}
-              >
-                <FolderOpen className="h-4 w-4 text-white" />
+              <div className="h-9 w-9 rounded-lg bg-violet-100 shrink-0 flex items-center justify-center">
+                <Building2 className="h-4 w-4 text-violet-600" />
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-700">
-                  {name || 'Nome do projeto'}
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-700 truncate">
+                  {description || 'Descrição do cliente'}
                 </p>
                 <p className="text-[10px] text-gray-400 font-mono uppercase mt-0.5">
-                  {color || '#94a3b8'}
+                  {code || 'AUTO-GERADO'}
                 </p>
               </div>
               <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5 ring-1 ring-emerald-200/60">
@@ -556,7 +497,7 @@ function ProjectModal({
             </button>
             <button
               type="submit"
-              disabled={isPending || !name.trim()}
+              disabled={isPending || !description.trim()}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#1D4ED8] text-white text-sm font-semibold hover:bg-[#1e40af] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               {isPending ? (
@@ -564,7 +505,7 @@ function ProjectModal({
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              {isPending ? 'Salvando...' : isEdit ? 'Salvar' : 'Criar Projeto'}
+              {isPending ? 'Salvando...' : isEdit ? 'Salvar' : 'Criar Cliente'}
             </button>
           </div>
         </form>

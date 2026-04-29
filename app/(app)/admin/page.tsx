@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentMembership, getCompanyMemberIds } from '@/lib/supabase/membership'
-import type { CompanyMember, Invitation, Project } from '@/lib/types/database.types'
+import type { CompanyMember, Invitation, Project, Client } from '@/lib/types/database.types'
 import AdminShell from './AdminShell'
 
 /**
@@ -39,6 +39,7 @@ export default async function AdminPage() {
     { data: pendingInvitations },
     { data: revokedInvitations },
     { data: companyProjects },
+    { data: companyClients },
   ] = await Promise.all([
     // Timesheets: member profiles for filter dropdown
     supabase
@@ -80,6 +81,14 @@ export default async function AdminPage() {
       .eq('company_id', companyId)
       .order('active', { ascending: false })
       .order('name', { ascending: true }),
+
+    // Clients: all company clients
+    supabase
+      .from('clients')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('active', { ascending: false })
+      .order('description', { ascending: true }),
   ])
 
   // Build profile map for team enrichment
@@ -117,6 +126,8 @@ export default async function AdminPage() {
         teamMembers={enrichedMembers}
         pendingInvitations={(pendingInvitations ?? []) as Invitation[]}
         revokedInvitations={(revokedInvitations ?? []) as Invitation[]}
+        // Clients data
+        clients={(companyClients ?? []) as Client[]}
       />
     </Suspense>
   )

@@ -6,6 +6,7 @@ import { isoDate, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from '@/lib
 import { ChevronLeft, ChevronRight, Check, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Project, Timesheet } from '@/lib/types/database.types'
+import { useToast } from '@/components/ui/toast'
 import WarningHourConflict from '@/components/timesheets/WarningHourConflict'
 
 interface QuickXYViewProps {
@@ -85,6 +86,7 @@ function QuickEntry({
   const [replacing, setReplacing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const supabase = useMemo(() => createClient(), [])
+  const { toast } = useToast()
 
   useEffect(() => {
     if (editing) inputRef.current?.focus()
@@ -164,6 +166,13 @@ function QuickEntry({
     const startTime = `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`
 
     const endTotalMin = startMinutes + totalMinutes
+
+    if (endTotalMin > 24 * 60) {
+      toast('Não é possível lançar. O horário final ultrapassa as 24h do dia.', 'warning')
+      setSaving(false)
+      return
+    }
+
     const endHour = Math.floor(endTotalMin / 60) % 24
     const endMin  = endTotalMin % 60
     const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`
@@ -172,7 +181,11 @@ function QuickEntry({
     // Fallback: DB constraint fired (race condition / another writer)
     if (error) {
       const hit = await checkOverlap(startTime, endTime)
-      if (hit) setConflict(hit)
+      if (hit) {
+        setConflict(hit)
+      } else {
+        toast('Ocorreu um erro ao salvar o apontamento.', 'error')
+      }
       setSaving(false)
       return
     }

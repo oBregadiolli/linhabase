@@ -12,7 +12,8 @@ export interface ProjectResult {
 
 export async function createProject(
   name: string,
-  color: string | null
+  color: string | null,
+  clientId?: string | null
 ): Promise<ProjectResult> {
   const trimmedName = name.trim()
   if (!trimmedName || trimmedName.length > 100) {
@@ -34,6 +35,7 @@ export async function createProject(
       company_id: membership.company.id,
       name: trimmedName,
       color: color?.trim() || null,
+      client_id: clientId || null,
       created_by: user.id,
     })
 
@@ -53,7 +55,8 @@ export async function createProject(
 export async function updateProject(
   projectId: string,
   name: string,
-  color: string | null
+  color: string | null,
+  clientId?: string | null
 ): Promise<ProjectResult> {
   const trimmedName = name.trim()
   if (!trimmedName || trimmedName.length > 100) {
@@ -84,6 +87,7 @@ export async function updateProject(
     .update({
       name: trimmedName,
       color: color?.trim() || null,
+      client_id: clientId !== undefined ? (clientId || null) : undefined,
     })
     .eq('id', projectId)
 

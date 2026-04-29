@@ -264,6 +264,44 @@ export interface Database {
           },
         ]
       }
+      clients: {
+        Row: {
+          id: string
+          company_id: string
+          code: string
+          description: string
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          code?: string
+          description: string
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          code?: string
+          description?: string
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'clients_company_id_fkey'
+            columns: ['company_id']
+            isOneToOne: false
+            referencedRelation: 'companies'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       projects: {
         Row: {
           id: string
@@ -274,6 +312,7 @@ export interface Database {
           active: boolean
           created_by: string
           created_at: string
+          client_id: string | null
         }
         Insert: {
           id?: string
@@ -284,6 +323,7 @@ export interface Database {
           active?: boolean
           created_by: string
           created_at?: string
+          client_id?: string | null
         }
         Update: {
           id?: string
@@ -294,6 +334,7 @@ export interface Database {
           active?: boolean
           created_by?: string
           created_at?: string
+          client_id?: string | null
         }
         Relationships: [
           {
@@ -301,6 +342,13 @@ export interface Database {
             columns: ['company_id']
             isOneToOne: false
             referencedRelation: 'companies'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'projects_client_id_fkey'
+            columns: ['client_id']
+            isOneToOne: false
+            referencedRelation: 'clients'
             referencedColumns: ['id']
           },
         ]
@@ -388,6 +436,10 @@ export type InvitationInsert = Database['public']['Tables']['invitations']['Inse
 
 export type Project = Database['public']['Tables']['projects']['Row']
 export type ProjectInsert = Database['public']['Tables']['projects']['Insert']
+
+export type Client = Database['public']['Tables']['clients']['Row']
+export type ClientInsert = Database['public']['Tables']['clients']['Insert']
+export type ClientUpdate = Database['public']['Tables']['clients']['Update']
 
 export type ActivityLog = Database['public']['Tables']['activity_log']['Row']
 export type ActivityLogInsert = Database['public']['Tables']['activity_log']['Insert']

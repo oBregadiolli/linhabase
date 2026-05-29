@@ -645,10 +645,7 @@ function DepartmentModal({
                   {code || (isEdit ? department?.code : 'AUTO')}
                 </p>
               </div>
-              <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5 ring-1 ring-emerald-200/60 shrink-0">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Preview
-              </span>
+
             </div>
 
             {/* Error */}
@@ -808,10 +805,7 @@ function TeamModal({
                   {code || (isEdit ? team?.code : 'AUTO')}
                 </p>
               </div>
-              <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5 ring-1 ring-emerald-200/60 shrink-0">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Preview
-              </span>
+
             </div>
 
             {/* Error */}

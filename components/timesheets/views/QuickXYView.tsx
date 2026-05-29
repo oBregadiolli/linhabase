@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import type { Project, Timesheet } from '@/lib/types/database.types'
 import { useToast } from '@/components/ui/toast'
 import WarningHourConflict from '@/components/timesheets/WarningHourConflict'
+import { Lock } from 'lucide-react'
 
 interface QuickXYViewProps {
   userId: string
@@ -67,6 +68,8 @@ function QuickEntry({
   onSuccess,
   onEdit,
   existingId,
+  entryCount,
+  isLocked,
   resolveProjectName,
 }: {
   date: string
@@ -77,6 +80,8 @@ function QuickEntry({
   onSuccess: () => void
   onEdit: (id: string) => void
   existingId: string | null
+  entryCount: number
+  isLocked: boolean
   resolveProjectName: (projectId: string | null) => string
 }) {
   const [editing, setEditing] = useState(false)
@@ -147,6 +152,13 @@ function QuickEntry({
   }
 
   async function handleSave() {
+    // If entry is locked (submitted/approved), don't allow inline save
+    if (isLocked && existingId) {
+      onEdit(existingId)
+      setEditing(false)
+      setHours('')
+      return
+    }
     const h = parseFloat(hours.replace(',', '.'))
     if (isNaN(h) || h <= 0 || h > 24) { setEditing(false); return }
 
@@ -312,6 +324,36 @@ function QuickEntry({
     )
   }
 
+  // If locked (submitted/approved), show value with lock icon — click opens edit dialog
+  if (existingMinutes > 0 && isLocked) {
+    return (
+      <button
+        onClick={() => existingId ? onEdit(existingId) : undefined}
+        className="w-full h-full flex items-center justify-center gap-1 text-gray-400 bg-gray-50/60 cursor-pointer rounded"
+        title={`Enviado/Aprovado — clique para ver detalhes`}
+      >
+        <Lock className="h-2.5 w-2.5 text-gray-400 shrink-0" />
+        <span className="font-medium text-[11px]">{minutesToHours(existingMinutes)}</span>
+      </button>
+    )
+  }
+
+  // If multiple entries exist, show count badge — click opens first entry's edit dialog
+  if (existingMinutes > 0 && entryCount > 1) {
+    return (
+      <button
+        onClick={() => existingId ? onEdit(existingId) : setEditing(true)}
+        className="w-full h-full flex items-center justify-center gap-1 font-semibold text-[#1D4ED8] hover:bg-blue-50 transition-colors cursor-pointer rounded relative"
+        title={`${entryCount} entradas — clique para editar`}
+      >
+        {minutesToHours(existingMinutes)}
+        <span className="absolute -top-0.5 -right-0.5 h-3.5 min-w-[14px] rounded-full bg-amber-500 text-white text-[8px] font-bold flex items-center justify-center px-0.5">
+          {entryCount}
+        </span>
+      </button>
+    )
+  }
+
   if (existingMinutes > 0) {
     return (
       <button
@@ -390,16 +432,20 @@ export default function QuickXYView({
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Build lookup: project_id → date → { minutes, id }
+  // Build lookup: project_id → date → { minutes, id (first), ids (all), entryCount, locked }
   const matrix = useMemo(() => {
-    const m = new Map<string, Map<string, { minutes: number; id: string }>>()
+    const m = new Map<string, Map<string, { minutes: number; id: string; ids: string[]; entryCount: number; locked: boolean }>>()
     for (const t of timesheets) {
       if (!t.project_id) continue
       if (!m.has(t.project_id)) m.set(t.project_id, new Map())
       const prev = m.get(t.project_id)!.get(t.date)
+      const isEntryLocked = t.status === 'submitted' || t.status === 'approved'
       m.get(t.project_id)!.set(t.date, {
         minutes: (prev?.minutes ?? 0) + (t.duration_minutes ?? 0),
         id: prev?.id ?? t.id,
+        ids: [...(prev?.ids ?? []), t.id],
+        entryCount: (prev?.entryCount ?? 0) + 1,
+        locked: (prev?.locked ?? false) || isEntryLocked,
       })
     }
     return m
@@ -551,6 +597,8 @@ export default function QuickXYView({
                               project={proj}
                               existingMinutes={entry?.minutes ?? 0}
                               existingId={entry?.id ?? null}
+                              entryCount={entry?.entryCount ?? 0}
+                              isLocked={entry?.locked ?? false}
                               userId={userId}
                               companyId={companyId}
                               onSuccess={handleSuccess}

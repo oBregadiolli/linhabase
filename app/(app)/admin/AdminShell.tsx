@@ -42,6 +42,7 @@ const TABS: { key: AdminTab; label: string; icon: typeof FileText }[] = [
 // ── Props ───────────────────────────────────────────────────────
 
 interface AdminShellProps {
+  companyId: string
   companyName: string
   adminName: string
   adminEmail: string
@@ -71,6 +72,7 @@ function TabSpinner() {
 // ── Component ───────────────────────────────────────────────────
 
 export default function AdminShell({
+  companyId,
   companyName,
   adminName,
   adminEmail,
@@ -166,6 +168,7 @@ export default function AdminShell({
             {activeTab === 'team' && (
               <TeamClient
                 companyName={companyName}
+                companyId={companyId}
                 members={teamMembers}
                 pendingInvitations={pendingInvitations}
                 revokedInvitations={revokedInvitations}

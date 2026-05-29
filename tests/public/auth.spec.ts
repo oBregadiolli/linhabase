@@ -9,15 +9,16 @@ test.describe('Login Flow', () => {
     await expect(page.locator('button[type="submit"]')).toBeVisible()
   })
 
-  test('exibe erro de credencial inválida', async ({ page }) => {
+  test('exibe erro de credencial invalida', async ({ page }) => {
     await page.goto('/login')
     await page.locator('#email').fill('invalid@test.com')
     await page.locator('#password').fill('WrongPassword123!')
     await page.locator('button[type="submit"]').click()
-    await expect(page.getByText(/inválidos|credenciais/i)).toBeVisible({ timeout: 10_000 })
+    // Network may be slow — wait up to 30s for error response
+    await expect(page.getByText(/inválidos|credenciais|E-mail ou senha/i)).toBeVisible({ timeout: 30_000 })
   })
 
-  test('login válido redireciona para dashboard', async ({ page }) => {
+  test('login valido redireciona para dashboard', async ({ page }) => {
     const email = process.env.E2E_ADMIN_EMAIL || 'e2e-admin@linhabase.test'
     const password = process.env.E2E_ADMIN_PASSWORD || 'E2e@Admin2026!'
 
@@ -25,7 +26,7 @@ test.describe('Login Flow', () => {
     await page.locator('#email').fill(email)
     await page.locator('#password').fill(password)
     await page.locator('button[type="submit"]').click()
-    await expect(page).toHaveURL(/dashboard/, { timeout: 15_000 })
+    await expect(page).toHaveURL(/dashboard/, { timeout: 30_000 })
   })
 
   test('link "Crie sua conta" navega para /register', async ({ page }) => {

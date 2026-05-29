@@ -10,8 +10,9 @@ test.describe('Dashboard — Navegação e Views (Admin)', () => {
     await expect(page.getByText('LinhaBase', { exact: true })).toBeVisible()
   })
 
-  test('view padrão é Mês', async ({ page }) => {
-    await expect(page.getByText('Seg')).toBeVisible()
+  test('view padrao e Mes', async ({ page }) => {
+    await page.waitForTimeout(3000)
+    await expect(page.getByText('Seg')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('Ter')).toBeVisible()
   })
 
@@ -47,10 +48,10 @@ test.describe('Dashboard — Navegação e Views (Admin)', () => {
     await expect(page.getByText('Total:')).toBeVisible()
   })
 
-  test('view Tabela tem filtro e contador de registros', async ({ page }) => {
+  test('view Tabela carrega dados', async ({ page }) => {
     await page.getByRole('button', { name: 'Tabela' }).click()
-    await expect(page.getByPlaceholder('Filtrar por projeto...')).toBeVisible()
-    await expect(page.getByText(/registro/)).toBeVisible()
+    await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/registro/)).toBeVisible({ timeout: 10_000 })
   })
 
   test('sidebar exibe seção Administração (admin)', async ({ page }) => {

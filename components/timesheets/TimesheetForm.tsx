@@ -136,7 +136,7 @@ export default function TimesheetForm({
     (timesheet?.status as "draft" | "submitted" | "approved") ?? "draft";
 
   // Lock: submitted/approved timesheets cannot be edited by the user
-  const isLocked = mode === "edit" && status === "approved";
+  const isLocked = mode === "edit" && (status === "approved" || status === "submitted");
   const [submitting, setSubmitting] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -389,7 +389,9 @@ export default function TimesheetForm({
           {/* Locked banner */}
           {isLocked && (
             <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
-              Este apontamento já foi aprovado e não pode ser editado.
+              {status === 'approved'
+                ? 'Este apontamento já foi aprovado e não pode ser editado.'
+                : 'Este apontamento já foi enviado para aprovação. Aguarde a aprovação ou peça ao administrador para devolvê-lo.'}
             </div>
           )}
 

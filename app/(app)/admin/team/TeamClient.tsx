@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, lazy, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Users, Mail, UserPlus, Clock, CheckCircle2, XCircle, Shield, User, Copy, RefreshCw, Ban, Check, AlertTriangle, Send, Hash } from 'lucide-react'
+import { ArrowLeft, Users, Mail, UserPlus, Clock, CheckCircle2, XCircle, Shield, User, Copy, RefreshCw, Ban, Check, AlertTriangle, Send, Hash, DollarSign } from 'lucide-react'
+
+const MemberRatesPanel = lazy(() => import('./MemberRatesPanel'))
 import { cn } from '@/lib/utils'
 import type { CompanyMember, Invitation } from '@/lib/types/database.types'
 import { createInvitation, revokeInvitation, resendInvitation } from './actions'
@@ -15,6 +17,7 @@ interface EnrichedMember extends CompanyMember {
 
 interface TeamClientProps {
   companyName: string
+  companyId: string
   members: EnrichedMember[]
   pendingInvitations: Invitation[]
   revokedInvitations: Invitation[]
@@ -22,9 +25,10 @@ interface TeamClientProps {
   embedded?: boolean
 }
 
-export default function TeamClient({ companyName, members, pendingInvitations, revokedInvitations, embedded }: TeamClientProps) {
+export default function TeamClient({ companyName, companyId, members, pendingInvitations, revokedInvitations, embedded }: TeamClientProps) {
   const router = useRouter()
   const [showInviteForm, setShowInviteForm] = useState(false)
+  const [ratesMemberId, setRatesMemberId] = useState<string | null>(null)
 
   const activeMembers = members.filter(m => m.status === 'active')
   const pendingMembers = members.filter(m => m.status === 'pending')
@@ -119,7 +123,29 @@ export default function TeamClient({ companyName, members, pendingInvitations, r
               ) : (
                 <div className="divide-y divide-gray-50">
                   {activeMembers.map(m => (
-                    <MemberRow key={m.id} member={m} />
+                    <div key={m.id}>
+                      <MemberRow
+                        member={m}
+                        showRatesButton
+                        ratesOpen={ratesMemberId === m.user_id}
+                        onToggleRates={() => setRatesMemberId(prev => prev === m.user_id ? null : m.user_id)}
+                      />
+                      {ratesMemberId === m.user_id && m.user_id && (
+                        <div className="px-4 pb-4 bg-gray-50/30">
+                          <Suspense fallback={
+                            <div className="flex items-center justify-center py-8">
+                              <div className="h-5 w-5 rounded-full border-2 border-[#3730A3] border-t-transparent animate-spin" />
+                            </div>
+                          }>
+                            <MemberRatesPanel
+                              userId={m.user_id}
+                              memberName={m.profile_name || m.email}
+                              companyId={companyId}
+                            />
+                          </Suspense>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -215,7 +241,7 @@ function Section({ title, count, children }: { title: string; count: number; chi
 
 // ── Member row ────────────────────────────────────────────────
 
-function MemberRow({ member }: { member: EnrichedMember }) {
+function MemberRow({ member, showRatesButton, ratesOpen, onToggleRates }: { member: EnrichedMember; showRatesButton?: boolean; ratesOpen?: boolean; onToggleRates?: () => void }) {
   const displayName = member.profile_name || member.email
   const initials = displayName
     .split(' ')
@@ -254,6 +280,22 @@ function MemberRow({ member }: { member: EnrichedMember }) {
 
       {/* Status badge */}
       <StatusBadge status={member.status} />
+
+      {/* Rates button */}
+      {showRatesButton && member.user_id && (
+        <button
+          onClick={onToggleRates}
+          title="Taxas de custo/venda"
+          className={cn(
+            'p-1.5 rounded-md transition-colors cursor-pointer shrink-0',
+            ratesOpen
+              ? 'text-[#3730A3] bg-[#EEF2FF]'
+              : 'text-gray-400 hover:text-[#3730A3] hover:bg-[#EEF2FF]'
+          )}
+        >
+          <DollarSign className="h-3.5 w-3.5" />
+        </button>
+      )}
 
       {/* Date */}
       <span className="text-[11px] text-gray-400 hidden sm:block whitespace-nowrap">

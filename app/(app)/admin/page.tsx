@@ -133,6 +133,7 @@ export default async function AdminPage() {
       </div>
     }>
       <AdminShell
+        companyId={companyId}
         companyName={membership.company.name}
         adminName={adminProfile?.name ?? membership.member.email}
         adminEmail={membership.member.email}

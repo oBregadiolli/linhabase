@@ -6,6 +6,8 @@
  * - 1 test company
  * - Memberships (admin + member)
  * - 3 test projects
+ * - 2 test clients
+ * - 1 department with 1 team
  *
  * Idempotent: safe to run multiple times.
  *
@@ -15,7 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 
-// ── Config ───────────────────────────────────────────────────
+// -- Config -------------------------------------------------------------------
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -27,7 +29,7 @@ const MEMBER_PASSWORD = process.env.E2E_MEMBER_PASSWORD || 'E2e@Member2026!'
 
 const E2E_COMPANY_ID = 'e2e00000-0000-0000-0000-000000000001'
 
-// ── Helpers ──────────────────────────────────────────────────
+// -- Helpers ------------------------------------------------------------------
 
 function log(icon: string, msg: string) {
   console.log(`  ${icon}  ${msg}`)
@@ -39,7 +41,7 @@ function header(title: string) {
   console.log('─'.repeat(50))
 }
 
-// ── User Creation / Login ────────────────────────────────────
+// -- User Creation / Login ----------------------------------------------------
 
 async function ensureUser(
   supabase: ReturnType<typeof createClient>,
@@ -47,20 +49,32 @@ async function ensureUser(
   password: string,
   name: string,
 ): Promise<{ id: string; isNew: boolean } | null> {
-  // Try to sign in first
-  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
+  // Try to sign in first (with retry on network error)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { data: signInData } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-  if (signInData?.user) {
-    log('✅', `${name} already exists — ${email} (${signInData.user.id})`)
-    await supabase.auth.signOut()
-    return { id: signInData.user.id, isNew: false }
+      if (signInData?.user) {
+        log('OK', `${name} already exists — ${email} (${signInData.user.id})`)
+        await supabase.auth.signOut()
+        return { id: signInData.user.id, isNew: false }
+      }
+      break // no error, user just doesn't exist
+    } catch {
+      if (attempt < 2) {
+        log('..', `${name} sign-in attempt ${attempt + 1} failed, retrying...`)
+        await new Promise(r => setTimeout(r, 2000))
+        continue
+      }
+      log('WARN', `${name} sign-in failed after 3 attempts, trying signUp`)
+    }
   }
 
   // User doesn't exist, create via signUp
-  log('🔧', `Creating ${name}: ${email}`)
+  log('..', `Creating ${name}: ${email}`)
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -70,59 +84,70 @@ async function ensureUser(
   })
 
   if (signUpError) {
-    log('❌', `Failed to create ${name}: ${signUpError.message}`)
+    // 'User already registered' means user exists but signIn failed (network issue)
+    // Try signIn one more time
+    if (signUpError.message.includes('already registered')) {
+      log('..', `${name} already registered, retrying sign-in...`)
+      await new Promise(r => setTimeout(r, 2000))
+      const { data } = await supabase.auth.signInWithPassword({ email, password })
+      if (data?.user) {
+        log('OK', `${name} exists — ${email} (${data.user.id})`)
+        await supabase.auth.signOut()
+        return { id: data.user.id, isNew: false }
+      }
+    }
+    log('ERR', `Failed to create ${name}: ${signUpError.message}`)
     return null
   }
 
   if (!signUpData.user) {
-    log('❌', `No user returned for ${name}`)
+    log('ERR', `No user returned for ${name}`)
     return null
   }
 
-  log('✅', `${name} created — ${email} (${signUpData.user.id})`)
+  log('OK', `${name} created — ${email} (${signUpData.user.id})`)
   await supabase.auth.signOut()
   return { id: signUpData.user.id, isNew: true }
 }
 
-// ── Main ─────────────────────────────────────────────────────
+// -- Main ---------------------------------------------------------------------
 
 async function main() {
-  console.log('\n🌱 LinhaBase E2E Seed\n')
+  console.log('\nLinhaBase E2E Seed\n')
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error('❌ Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
+    console.error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
     process.exit(1)
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   let hasErrors = false
 
-  // ── 1. Create/verify admin user ──────────────────────────
+  // -- 1. Create/verify admin user --------------------------------------------
   header('1. Admin User')
   const admin = await ensureUser(supabase, ADMIN_EMAIL, ADMIN_PASSWORD, 'E2E Admin')
   if (!admin) hasErrors = true
 
-  // ── 2. Create/verify member user ─────────────────────────
+  // -- 2. Create/verify member user -------------------------------------------
   header('2. Member User')
   const member = await ensureUser(supabase, MEMBER_EMAIL, MEMBER_PASSWORD, 'E2E Member')
   if (!member) hasErrors = true
 
   if (hasErrors || !admin || !member) {
-    log('❌', 'Cannot continue without both users')
+    log('ERR', 'Cannot continue without both users')
     process.exit(1)
   }
 
-  // ── 3. Setup company & memberships (requires login) ──────
+  // -- 3. Setup company & memberships (requires login) ------------------------
   header('3. Company & Memberships')
 
-  // Login as admin to set up company data
   const { data: adminSession } = await supabase.auth.signInWithPassword({
     email: ADMIN_EMAIL,
     password: ADMIN_PASSWORD,
   })
 
   if (!adminSession?.user) {
-    log('❌', 'Cannot login as admin for setup')
+    log('ERR', 'Cannot login as admin for setup')
     process.exit(1)
   }
 
@@ -134,7 +159,7 @@ async function main() {
     .maybeSingle()
 
   if (existingCompany) {
-    log('✅', `Company exists: ${existingCompany.name}`)
+    log('OK', `Company exists: ${existingCompany.name}`)
   } else {
     const { error: companyError } = await supabase
       .from('companies')
@@ -145,10 +170,10 @@ async function main() {
       })
 
     if (companyError) {
-      log('❌', `Failed to create company: ${companyError.message}`)
+      log('ERR', `Failed to create company: ${companyError.message}`)
       hasErrors = true
     } else {
-      log('✅', 'Company created: E2E Test Company')
+      log('OK', 'Company created: E2E Test Company')
     }
   }
 
@@ -161,7 +186,7 @@ async function main() {
     .maybeSingle()
 
   if (adminMember) {
-    log('✅', 'Admin membership exists')
+    log('OK', 'Admin membership exists')
   } else {
     const { error } = await supabase
       .from('company_members')
@@ -175,10 +200,10 @@ async function main() {
       })
 
     if (error) {
-      log('❌', `Failed to create admin membership: ${error.message}`)
+      log('ERR', `Failed to create admin membership: ${error.message}`)
       hasErrors = true
     } else {
-      log('✅', 'Admin membership created')
+      log('OK', 'Admin membership created')
     }
   }
 
@@ -191,7 +216,7 @@ async function main() {
     .maybeSingle()
 
   if (memberMember) {
-    log('✅', 'Member membership exists')
+    log('OK', 'Member membership exists')
   } else {
     const { error } = await supabase
       .from('company_members')
@@ -205,14 +230,14 @@ async function main() {
       })
 
     if (error) {
-      log('❌', `Failed to create member membership: ${error.message}`)
+      log('ERR', `Failed to create member membership: ${error.message}`)
       hasErrors = true
     } else {
-      log('✅', 'Member membership created')
+      log('OK', 'Member membership created')
     }
   }
 
-  // ── 4. Create projects ───────────────────────────────────
+  // -- 4. Create projects -----------------------------------------------------
   header('4. Projects')
 
   const projects = [
@@ -229,7 +254,7 @@ async function main() {
       .maybeSingle()
 
     if (existing) {
-      log('✅', `Project exists: ${p.name}`)
+      log('OK', `Project exists: ${p.name}`)
     } else {
       const { error } = await supabase
         .from('projects')
@@ -243,23 +268,115 @@ async function main() {
         })
 
       if (error) {
-        log('⚠️', `Project ${p.name}: ${error.message}`)
+        log('WARN', `Project ${p.name}: ${error.message}`)
       } else {
-        log('✅', `Project created: ${p.name}`)
+        log('OK', `Project created: ${p.name}`)
       }
+    }
+  }
+
+  // -- 5. Create clients ------------------------------------------------------
+  header('5. Clients')
+
+  const clients = [
+    { id: 'e2e00000-0000-0000-0000-000000000201', description: 'E2E Cliente Principal', active: true },
+    { id: 'e2e00000-0000-0000-0000-000000000202', description: 'E2E Cliente Secundario', active: true },
+  ]
+
+  for (const c of clients) {
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('id', c.id)
+      .maybeSingle()
+
+    if (existing) {
+      log('OK', `Client exists: ${c.description}`)
+    } else {
+      const { error } = await supabase
+        .from('clients')
+        .insert({
+          id: c.id,
+          company_id: E2E_COMPANY_ID,
+          description: c.description,
+          active: c.active,
+        })
+
+      if (error) {
+        log('WARN', `Client ${c.description}: ${error.message}`)
+      } else {
+        log('OK', `Client created: ${c.description}`)
+      }
+    }
+  }
+
+  // -- 6. Create department & team --------------------------------------------
+  header('6. Department & Team')
+
+  const deptId = 'e2e00000-0000-0000-0000-000000000301'
+  const teamId = 'e2e00000-0000-0000-0000-000000000401'
+
+  const { data: existingDept } = await supabase
+    .from('departments')
+    .select('id')
+    .eq('id', deptId)
+    .maybeSingle()
+
+  if (existingDept) {
+    log('OK', 'Department exists: E2E Engenharia')
+  } else {
+    const { error } = await supabase
+      .from('departments')
+      .insert({
+        id: deptId,
+        company_id: E2E_COMPANY_ID,
+        name: 'E2E Engenharia',
+        active: true,
+      })
+
+    if (error) {
+      log('WARN', `Department: ${error.message}`)
+    } else {
+      log('OK', 'Department created: E2E Engenharia')
+    }
+  }
+
+  const { data: existingTeam } = await supabase
+    .from('teams')
+    .select('id')
+    .eq('id', teamId)
+    .maybeSingle()
+
+  if (existingTeam) {
+    log('OK', 'Team exists: E2E Backend')
+  } else {
+    const { error } = await supabase
+      .from('teams')
+      .insert({
+        id: teamId,
+        company_id: E2E_COMPANY_ID,
+        department_id: deptId,
+        name: 'E2E Backend',
+        active: true,
+      })
+
+    if (error) {
+      log('WARN', `Team: ${error.message}`)
+    } else {
+      log('OK', 'Team created: E2E Backend')
     }
   }
 
   await supabase.auth.signOut()
 
-  // ── Summary ──────────────────────────────────────────────
+  // -- Summary ----------------------------------------------------------------
   header('Summary')
   if (hasErrors) {
-    log('⚠️', 'Some steps had issues. Review above.')
+    log('!!', 'Some steps had issues. Review above.')
     process.exit(1)
   } else {
-    log('🎉', 'All E2E seed data ready!')
-    log('🚀', 'Run tests: npm run test:e2e')
+    log('OK', 'All E2E seed data ready.')
+    log('>>', 'Run tests: npm run test:e2e')
   }
 }
 

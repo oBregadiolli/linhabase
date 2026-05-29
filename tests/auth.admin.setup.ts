@@ -13,7 +13,7 @@ setup('autenticar admin E2E', async ({ page }) => {
   await page.locator('button[type="submit"]').click()
 
   // Espera o redirect para o dashboard
-  await expect(page).toHaveURL(/dashboard/, { timeout: 15_000 })
+  await expect(page).toHaveURL(/dashboard/, { timeout: 30_000 })
 
   // Salva o estado de autenticação
   await page.context().storageState({ path: authFile })

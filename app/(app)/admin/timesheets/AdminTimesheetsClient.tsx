@@ -17,6 +17,7 @@ interface MemberProfile {
 interface ProjectSummary {
   id: string
   name: string
+  code: string
   color: string | null
   active: boolean
 }
@@ -78,12 +79,12 @@ export default function AdminTimesheetsClient({ companyName, members, projects, 
     return map
   }, [projects])
 
-  function resolveProject(t: Timesheet): { name: string; color: string | null } {
+  function resolveProject(t: Timesheet): { name: string; code: string; color: string | null } {
     if (t.project_id) {
       const p = projectMap.get(t.project_id)
-      if (p) return { name: p.name, color: p.color }
+      if (p) return { name: p.name, code: p.code, color: p.color }
     }
-    return { name: 'Sem projeto', color: null }
+    return { name: 'Sem projeto', code: '', color: null }
   }
 
   // ── Data fetch ────────────────────────────────────────────────
@@ -458,6 +459,9 @@ export default function AdminTimesheetsClient({ companyName, members, projects, 
                                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: proj.color }} />
                                 )}
                                 {proj.name}
+                                {proj.code && (
+                                  <span className="text-[10px] font-mono text-gray-400 ml-1">#{proj.code}</span>
+                                )}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-gray-500 truncate max-w-[200px]" title={t.description ?? ''}>

@@ -186,6 +186,7 @@ export interface Database {
           status: 'pending' | 'active' | 'inactive'
           invited_at: string
           joined_at: string | null
+          team_id: string | null
         }
         Insert: {
           id?: string
@@ -196,6 +197,7 @@ export interface Database {
           status?: 'pending' | 'active' | 'inactive'
           invited_at?: string
           joined_at?: string | null
+          team_id?: string | null
         }
         Update: {
           id?: string
@@ -206,6 +208,7 @@ export interface Database {
           status?: 'pending' | 'active' | 'inactive'
           invited_at?: string
           joined_at?: string | null
+          team_id?: string | null
         }
         Relationships: [
           {
@@ -213,6 +216,93 @@ export interface Database {
             columns: ['company_id']
             isOneToOne: false
             referencedRelation: 'companies'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'company_members_team_id_fkey'
+            columns: ['team_id']
+            isOneToOne: false
+            referencedRelation: 'teams'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      departments: {
+        Row: {
+          id: string
+          company_id: string
+          code: string
+          name: string
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          code?: string
+          name: string
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          code?: string
+          name?: string
+          active?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'departments_company_id_fkey'
+            columns: ['company_id']
+            isOneToOne: false
+            referencedRelation: 'companies'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          id: string
+          company_id: string
+          department_id: string
+          code: string
+          name: string
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          department_id: string
+          code?: string
+          name: string
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          department_id?: string
+          code?: string
+          name?: string
+          active?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'teams_company_id_fkey'
+            columns: ['company_id']
+            isOneToOne: false
+            referencedRelation: 'companies'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'teams_department_id_fkey'
+            columns: ['department_id']
+            isOneToOne: false
+            referencedRelation: 'departments'
             referencedColumns: ['id']
           },
         ]
@@ -353,6 +443,47 @@ export interface Database {
           },
         ]
       }
+      member_rates: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          start_date: string
+          end_date: string | null
+          sale_rate: number
+          cost_rate: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          start_date: string
+          end_date?: string | null
+          sale_rate: number
+          cost_rate: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          user_id?: string
+          start_date?: string
+          end_date?: string | null
+          sale_rate?: number
+          cost_rate?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'member_rates_company_id_fkey'
+            columns: ['company_id']
+            isOneToOne: false
+            referencedRelation: 'companies'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       activity_log: {
         Row: {
           id: string
@@ -439,7 +570,15 @@ export type ProjectInsert = Database['public']['Tables']['projects']['Insert']
 
 export type Client = Database['public']['Tables']['clients']['Row']
 export type ClientInsert = Database['public']['Tables']['clients']['Insert']
-export type ClientUpdate = Database['public']['Tables']['clients']['Update']
+
+export type Department = Database['public']['Tables']['departments']['Row']
+export type DepartmentInsert = Database['public']['Tables']['departments']['Insert']
+
+export type Team = Database['public']['Tables']['teams']['Row']
+export type TeamInsert = Database['public']['Tables']['teams']['Insert']
+
+export type MemberRate = Database['public']['Tables']['member_rates']['Row']
+export type MemberRateInsert = Database['public']['Tables']['member_rates']['Insert']
 
 export type ActivityLog = Database['public']['Tables']['activity_log']['Row']
 export type ActivityLogInsert = Database['public']['Tables']['activity_log']['Insert']

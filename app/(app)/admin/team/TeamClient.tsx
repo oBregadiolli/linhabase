@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Users, Mail, UserPlus, Clock, CheckCircle2, XCircle, Shield, User, Copy, RefreshCw, Ban, Check, AlertTriangle, Send } from 'lucide-react'
+import { ArrowLeft, Users, Mail, UserPlus, Clock, CheckCircle2, XCircle, Shield, User, Copy, RefreshCw, Ban, Check, AlertTriangle, Send, Hash } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CompanyMember, Invitation } from '@/lib/types/database.types'
 import { createInvitation, revokeInvitation, resendInvitation } from './actions'
@@ -10,6 +10,7 @@ import type { InviteResult } from './actions'
 
 interface EnrichedMember extends CompanyMember {
   profile_name: string | null
+  profile_code: string | null
 }
 
 interface TeamClientProps {
@@ -234,7 +235,15 @@ function MemberRow({ member }: { member: EnrichedMember }) {
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800 truncate">{displayName}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-gray-800 truncate">{displayName}</p>
+          {member.profile_code && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-mono text-gray-400 bg-gray-50 rounded px-1.5 py-0.5 ring-1 ring-gray-200/60 shrink-0">
+              <Hash className="h-2.5 w-2.5" />
+              {member.profile_code}
+            </span>
+          )}
+        </div>
         {member.profile_name && (
           <p className="text-[11px] text-gray-400 truncate">{member.email}</p>
         )}

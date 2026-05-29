@@ -10,13 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import ProjectSearchCombobox from "@/components/ui/ProjectSearchCombobox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -496,7 +490,6 @@ export default function TimesheetForm({
             </div>
           </div>
 
-          {/* Project */}
           <div className="space-y-1.5">
             <Label
               htmlFor="ts-project"
@@ -505,70 +498,25 @@ export default function TimesheetForm({
               Projeto
             </Label>
             {hasProjects ? (
-              /* ── Structured select (company has projects) ── */
-              <Select
+              /* ── Smart search combobox (company has projects) ── */
+              <ProjectSearchCombobox
+                projects={visibleProjects}
                 value={selectedProjectId}
-                onValueChange={(v) => {
-                  if (v) {
-                    setSelectedProjectId(v);
-                    const p = projects.find(p => p.id === v);
-                    if (p) setProjectText(p.name);
-                  }
+                onChange={(v) => {
+                  setSelectedProjectId(v);
+                  const p = projects.find(p => p.id === v);
+                  if (p) setProjectText(p.name);
                 }}
-              >
-                <SelectTrigger
-                  id="ts-project"
-                  className={cn(
-                    "w-full",
-                    errors.project && "border-destructive",
-                  )}
-                >
-                  <SelectValue placeholder="Selecione um projeto">
-                    {selectedProjectId ? (
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: projects.find(p => p.id === selectedProjectId)?.color || '#94a3b8' }}
-                        />
-                        {getSelectedProjectName()}
-                        {projects.find(p => p.id === selectedProjectId)?.active === false && (
-                          <span className="text-[10px] text-gray-400 ml-1">(inativo)</span>
-                        )}
-                      </span>
-                    ) : undefined}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {visibleProjects.map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: p.color || '#94a3b8' }}
-                        />
-                        {p.name}
-                        {!p.active && (
-                          <span className="text-[10px] text-gray-400 ml-1">(inativo)</span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Buscar projeto..."
+                disabled={isLocked}
+                error={!!errors.project}
+              />
             ) : (
               /* ── Empty state: user has no company/projects ── */
               <div className="space-y-2">
-                <Select disabled>
-                  <SelectTrigger
-                    id="ts-project"
-                    className="w-full opacity-60 cursor-not-allowed"
-                  >
-                    <SelectValue placeholder="Nenhum projeto disponível" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__empty" disabled>Nenhum projeto</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center h-9 rounded-lg border border-input bg-muted/40 px-3 text-sm text-muted-foreground opacity-60 cursor-not-allowed">
+                  Nenhum projeto disponível
+                </div>
                 <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
                   Você precisa pertencer a uma empresa com projetos cadastrados para registrar apontamentos.
                 </p>

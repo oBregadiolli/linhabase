@@ -4,13 +4,21 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Pencil, Power, PowerOff,
-  XCircle, Check, X, Search, Calendar, Hash, Copy, CheckCheck
+  XCircle, Check, X, Search, Hash, Calendar
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Client } from '@/lib/types/database.types'
-import { createClientAction, updateClientAction, toggleClientActive } from './actions'
+import { createClientRecord, updateClientRecord, toggleClientActive } from './actions'
 
-// ── Props ───────────────────────────────────────────────────────
+// ── Local Client type ─────────────────────────────────────────
+interface Client {
+  id: string
+  company_id: string
+  code: string
+  description: string
+  active: boolean
+  created_at: string
+  updated_at: string
+}
 
 interface ClientsClientProps {
   companyName: string
@@ -31,10 +39,9 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
 
   // Filtered clients
   const filteredClients = clients.filter(c => {
-    const q = search.toLowerCase()
     const matchesSearch = search === '' ||
-      c.description.toLowerCase().includes(q) ||
-      c.code.toLowerCase().includes(q)
+      c.description.toLowerCase().includes(search.toLowerCase()) ||
+      c.code?.toLowerCase().includes(search.toLowerCase())
     const matchesStatus = filterStatus === 'all' ||
       (filterStatus === 'active' && c.active) ||
       (filterStatus === 'inactive' && !c.active)
@@ -49,14 +56,23 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
 
   return (
     <div className={embedded ? 'flex flex-col flex-1 min-w-0 overflow-hidden' : 'flex h-screen bg-[#F3F4F6] overflow-hidden'}>
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className={embedded ? 'flex flex-col flex-1 min-w-0 overflow-hidden' : 'flex flex-col flex-1 min-w-0 overflow-hidden'}>
 
         {/* Topbar — hidden when embedded in AdminShell */}
         {!embedded && (
         <header className="shrink-0 flex items-center justify-between gap-4 bg-white border-b border-gray-200 px-6 h-14">
-          <div>
-            <h1 className="text-sm font-semibold text-gray-900">Clientes</h1>
-            <p className="text-[11px] text-gray-400">{companyName}</p>
+          <div className="flex items-center gap-3">
+            <a
+              href="/admin/timesheets"
+              className="p-1.5 rounded-md text-gray-400 hover:text-[#1D4ED8] hover:bg-blue-50 transition-colors duration-150"
+              title="Voltar"
+            >
+              <Building2 className="h-4.5 w-4.5" />
+            </a>
+            <div>
+              <h1 className="text-sm font-semibold text-gray-900">Clientes</h1>
+              <p className="text-[11px] text-gray-400">{companyName}</p>
+            </div>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -75,8 +91,8 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
-                  <Building2 className="h-5 w-5 text-violet-600" />
+                <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                  <Building2 className="h-5 w-5 text-[#1D4ED8]" />
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Total</p>
@@ -114,7 +130,7 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar por código ou descrição..."
+                  placeholder="Buscar cliente..."
                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder:text-gray-400 outline-none focus:border-[#1D4ED8] transition-colors"
                 />
               </div>
@@ -155,10 +171,10 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
                 <thead>
                   <tr className="bg-gray-50/80 border-b border-gray-200">
                     <th className="text-left px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                      Código
+                      Cliente
                     </th>
-                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                      Descrição
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                      Código
                     </th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                       Status
@@ -235,7 +251,6 @@ function ClientRow({
 }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
 
   function handleToggle() {
     setError(null)
@@ -249,12 +264,6 @@ function ClientRow({
     })
   }
 
-  function handleCopyCode() {
-    navigator.clipboard.writeText(client.code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
   const createdDate = new Date(client.created_at).toLocaleDateString('pt-BR', {
     day: '2-digit', month: 'short', year: 'numeric',
   })
@@ -262,37 +271,32 @@ function ClientRow({
   return (
     <>
       <tr className={cn(
-        'group hover:bg-violet-50/30 transition-colors',
+        'group hover:bg-blue-50/30 transition-colors',
         !client.active && 'opacity-60',
       )}>
-        {/* Code */}
+        {/* Client description + icon */}
         <td className="px-5 py-3.5">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-violet-100 shrink-0 flex items-center justify-center">
-              <Hash className="h-4 w-4 text-violet-600" />
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg shrink-0 flex items-center justify-center bg-[#3730A3]/10">
+              <Building2 className="h-4 w-4 text-[#3730A3]" />
             </div>
-            <button
-              onClick={handleCopyCode}
-              className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold text-gray-800 hover:text-violet-700 transition-colors cursor-pointer"
-              title="Copiar código"
-            >
-              {client.code}
-              {copied
-                ? <CheckCheck className="h-3 w-3 text-emerald-500" />
-                : <Copy className="h-3 w-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-              }
-            </button>
+            <div className="min-w-0">
+              <p className={cn(
+                'font-medium truncate',
+                client.active ? 'text-gray-900' : 'text-gray-500'
+              )}>
+                {client.description}
+              </p>
+            </div>
           </div>
         </td>
 
-        {/* Description */}
-        <td className="px-4 py-3.5">
-          <p className={cn(
-            'font-medium truncate max-w-xs',
-            client.active ? 'text-gray-900' : 'text-gray-500'
-          )}>
-            {client.description}
-          </p>
+        {/* Code */}
+        <td className="px-4 py-3.5 hidden sm:table-cell">
+          <span className="inline-flex items-center gap-1 text-xs font-mono text-gray-500 bg-gray-50 rounded-md px-2 py-1 ring-1 ring-gray-200/60">
+            <Hash className="h-3 w-3 text-gray-400 shrink-0" />
+            {client.code}
+          </span>
         </td>
 
         {/* Status */}
@@ -378,9 +382,10 @@ function ClientModal({
     setError(null)
 
     startTransition(async () => {
+      const trimmedCode = code.trim() || undefined
       const result = isEdit
-        ? await updateClientAction(client!.id, description, code)
-        : await createClientAction(description, code || undefined)
+        ? await updateClientRecord(client!.id, description, trimmedCode)
+        : await createClientRecord(description, trimmedCode)
 
       if (result.success) {
         onSuccess()
@@ -409,7 +414,7 @@ function ClientModal({
             </button>
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {isEdit ? 'Atualize a descrição e o código do cliente.' : 'Defina a descrição do cliente. O código será gerado automaticamente se deixado vazio.'}
+            {isEdit ? 'Atualize a descrição e código do cliente.' : 'Defina a descrição e código para identificar o cliente.'}
           </p>
         </div>
 
@@ -418,17 +423,17 @@ function ClientModal({
             {/* Description */}
             <div>
               <label htmlFor="client-description" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Descrição
+                Descrição do cliente
               </label>
-              <input
+              <textarea
                 id="client-description"
-                type="text"
                 required
                 maxLength={200}
+                rows={3}
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Ex: Empresa ABC Ltda."
-                className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors"
+                placeholder="Ex: Empresa ABC Ltda"
+                className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors resize-none"
                 disabled={isPending}
                 autoFocus
               />
@@ -448,29 +453,29 @@ function ClientModal({
                 maxLength={8}
                 value={code}
                 onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                placeholder={isEdit ? client.code : 'Auto-gerado'}
-                className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 font-mono placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors uppercase tracking-wider"
+                placeholder={isEdit ? client?.code : 'Gerado automaticamente'}
+                className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 font-mono uppercase placeholder:text-gray-400 placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors"
                 disabled={isPending}
               />
               <p className="text-[11px] text-gray-400 mt-1">
-                8 caracteres alfanuméricos. {isEdit ? '' : 'Deixe vazio para gerar automaticamente.'}
+                Máx. 8 caracteres alfanuméricos. Deixe vazio para gerar automaticamente.
               </p>
             </div>
 
             {/* Preview */}
             <div className="flex items-center gap-3 py-3 px-4 rounded-xl bg-gray-50 border border-gray-100">
-              <div className="h-9 w-9 rounded-lg bg-violet-100 shrink-0 flex items-center justify-center">
-                <Building2 className="h-4 w-4 text-violet-600" />
+              <div className="h-9 w-9 rounded-lg shrink-0 flex items-center justify-center bg-[#3730A3]/10">
+                <Building2 className="h-4 w-4 text-[#3730A3]" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-gray-700 truncate">
                   {description || 'Descrição do cliente'}
                 </p>
                 <p className="text-[10px] text-gray-400 font-mono uppercase mt-0.5">
-                  {code || 'AUTO-GERADO'}
+                  {code || (isEdit ? client?.code : 'AUTO')}
                 </p>
               </div>
-              <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5 ring-1 ring-emerald-200/60">
+              <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5 ring-1 ring-emerald-200/60 shrink-0">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 Preview
               </span>

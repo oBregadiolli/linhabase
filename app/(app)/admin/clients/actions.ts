@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentMembership } from '@/lib/supabase/membership'
-import type { ClientInsert, ClientUpdate } from '@/lib/types/database.types'
 
 export interface ClientResult {
   success: boolean
@@ -11,43 +10,41 @@ export interface ClientResult {
 
 // ── Create ────────────────────────────────────────────────────
 
-export async function createClientAction(
+export async function createClientRecord(
   description: string,
   code?: string
 ): Promise<ClientResult> {
-  const trimmedDesc = description.trim()
-  if (!trimmedDesc || trimmedDesc.length > 200) {
-    return { success: false, error: 'Descrição é obrigatória (máx. 200 caracteres).' }
+  const trimmedDescription = description.trim()
+  if (!trimmedDescription || trimmedDescription.length > 200) {
+    return { success: false, error: 'Descrição do cliente é obrigatória (máx. 200 caracteres).' }
+  }
+
+  // Validate code format if provided
+  if (code && !/^[A-Z0-9]{1,8}$/.test(code)) {
+    return { success: false, error: 'Código deve ter 1-8 caracteres alfanuméricos (A-Z, 0-9).' }
   }
 
   const membership = await getCurrentMembership()
-  if (!membership || !['admin', 'owner'].includes(membership.member.role)) {
+  if (!membership || membership.member.role !== 'admin') {
     return { success: false, error: 'Acesso negado.' }
   }
 
   const supabase = await createClient()
 
-  const insertPayload: ClientInsert = {
-    company_id: membership.company.id,
-    description: trimmedDesc,
-  }
-
-  // If admin supplies a custom code, use it; otherwise trigger auto-generates
-  if (code && code.trim()) {
-    const trimmedCode = code.trim().toUpperCase()
-    if (trimmedCode.length > 8) {
-      return { success: false, error: 'Código deve ter no máximo 8 caracteres.' }
-    }
-    insertPayload.code = trimmedCode
-  }
-
   const { error } = await supabase
     .from('clients')
-    .insert(insertPayload)
+    .insert({
+      company_id: membership.company.id,
+      description: trimmedDescription,
+      ...(code ? { code } : {}),
+    })
 
   if (error) {
     if (error.code === '23505') {
-      return { success: false, error: 'Já existe um registro com este código.' }
+      if (error.message?.includes('code')) {
+        return { success: false, error: 'Já existe um cliente com este código.' }
+      }
+      return { success: false, error: 'Já existe um cliente com esta descrição.' }
     }
     console.error('Failed to create client:', error)
     return { success: false, error: 'Erro ao criar cliente.' }
@@ -58,18 +55,24 @@ export async function createClientAction(
 
 // ── Update ────────────────────────────────────────────────────
 
-export async function updateClientAction(
+export async function updateClientRecord(
   clientId: string,
   description: string,
-  code?: string
+  code?: string,
+  active?: boolean
 ): Promise<ClientResult> {
-  const trimmedDesc = description.trim()
-  if (!trimmedDesc || trimmedDesc.length > 200) {
-    return { success: false, error: 'Descrição é obrigatória (máx. 200 caracteres).' }
+  const trimmedDescription = description.trim()
+  if (!trimmedDescription || trimmedDescription.length > 200) {
+    return { success: false, error: 'Descrição do cliente é obrigatória (máx. 200 caracteres).' }
+  }
+
+  // Validate code format if provided
+  if (code && !/^[A-Z0-9]{1,8}$/.test(code)) {
+    return { success: false, error: 'Código deve ter 1-8 caracteres alfanuméricos (A-Z, 0-9).' }
   }
 
   const membership = await getCurrentMembership()
-  if (!membership || !['admin', 'owner'].includes(membership.member.role)) {
+  if (!membership || membership.member.role !== 'admin') {
     return { success: false, error: 'Acesso negado.' }
   }
 
@@ -87,26 +90,21 @@ export async function updateClientAction(
     return { success: false, error: 'Acesso negado.' }
   }
 
-  const updatePayload: ClientUpdate = {
-    description: trimmedDesc,
-  }
-
-  if (code !== undefined) {
-    const trimmedCode = code.trim().toUpperCase()
-    if (trimmedCode.length > 8) {
-      return { success: false, error: 'Código deve ter no máximo 8 caracteres.' }
-    }
-    if (trimmedCode) updatePayload.code = trimmedCode
-  }
-
   const { error } = await supabase
     .from('clients')
-    .update(updatePayload)
+    .update({
+      description: trimmedDescription,
+      ...(code ? { code } : {}),
+      ...(active !== undefined ? { active } : {}),
+    })
     .eq('id', clientId)
 
   if (error) {
     if (error.code === '23505') {
-      return { success: false, error: 'Já existe um registro com este código.' }
+      if (error.message?.includes('code')) {
+        return { success: false, error: 'Já existe um cliente com este código.' }
+      }
+      return { success: false, error: 'Já existe um cliente com esta descrição.' }
     }
     console.error('Failed to update client:', error)
     return { success: false, error: 'Erro ao atualizar cliente.' }
@@ -122,7 +120,7 @@ export async function toggleClientActive(
   active: boolean
 ): Promise<ClientResult> {
   const membership = await getCurrentMembership()
-  if (!membership || !['admin', 'owner'].includes(membership.member.role)) {
+  if (!membership || membership.member.role !== 'admin') {
     return { success: false, error: 'Acesso negado.' }
   }
 
@@ -150,4 +148,33 @@ export async function toggleClientActive(
   }
 
   return { success: true }
+}
+
+// ── List ──────────────────────────────────────────────────────
+
+export async function getClientsForCompany(): Promise<{
+  success: boolean
+  data?: any[]
+  error?: string
+}> {
+  const membership = await getCurrentMembership()
+  if (!membership) {
+    return { success: false, error: 'Acesso negado.' }
+  }
+
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('company_id', membership.company.id)
+    .order('active', { ascending: false })
+    .order('description', { ascending: true })
+
+  if (error) {
+    console.error('Failed to fetch clients:', error)
+    return { success: false, error: 'Erro ao buscar clientes.' }
+  }
+
+  return { success: true, data: data ?? [] }
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, lazy, Suspense } from 'react'
 import { useSearchParams, usePathname } from 'next/navigation'
-import { FileText, Users, FolderOpen, Grid3X3, Building2 } from 'lucide-react'
+import { FileText, Users, FolderOpen, Grid3X3, Building2, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CompanyMember, Invitation, Project, Client } from '@/lib/types/database.types'
 import Sidebar from '@/components/timesheets/Sidebar'
@@ -11,8 +11,9 @@ import Sidebar from '@/components/timesheets/Sidebar'
 const AdminTimesheetsClient = lazy(() => import('./timesheets/AdminTimesheetsClient'))
 const TeamClient = lazy(() => import('./team/TeamClient'))
 const ProjectsClient = lazy(() => import('./projects/ProjectsClient'))
-const ClientsClient = lazy(() => import('./clients/ClientsClient'))
 const XYClient = lazy(() => import('./xy/XYClient'))
+const ClientsClient = lazy(() => import('./clients/ClientsClient'))
+const DepartmentsClient = lazy(() => import('./departments/DepartmentsClient'))
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -24,15 +25,17 @@ interface MemberProfile {
 
 interface EnrichedMember extends CompanyMember {
   profile_name: string | null
+  profile_code: string | null
 }
 
-type AdminTab = 'timesheets' | 'team' | 'projects' | 'clients' | 'xy'
+type AdminTab = 'timesheets' | 'team' | 'projects' | 'clients' | 'departments' | 'xy'
 
 const TABS: { key: AdminTab; label: string; icon: typeof FileText }[] = [
   { key: 'timesheets', label: 'Apontamentos', icon: FileText },
   { key: 'team',       label: 'Equipe',       icon: Users },
   { key: 'projects',   label: 'Projetos',     icon: FolderOpen },
   { key: 'clients',    label: 'Clientes',     icon: Building2 },
+  { key: 'departments', label: 'Departamentos', icon: Network },
   { key: 'xy',         label: 'XY',           icon: Grid3X3 },
 ]
 
@@ -52,6 +55,8 @@ interface AdminShellProps {
   revokedInvitations: Invitation[]
   // Clients tab
   clients: Client[]
+  // Departments tab
+  departments: any[] // EnrichedDepartment[] with nested teams
 }
 
 // ── Tab spinner ─────────────────────────────────────────────────
@@ -76,6 +81,7 @@ export default function AdminShell({
   pendingInvitations,
   revokedInvitations,
   clients,
+  departments,
 }: AdminShellProps) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -83,7 +89,7 @@ export default function AdminShell({
   // URL tab (for deep-link / back-forward sync)
   const urlTab: AdminTab = useMemo(() => {
     const t = searchParams.get('tab')
-    if (t === 'team' || t === 'projects' || t === 'timesheets' || t === 'clients' || t === 'xy') return t
+    if (t === 'team' || t === 'projects' || t === 'timesheets' || t === 'clients' || t === 'departments' || t === 'xy') return t
     return 'timesheets'
   }, [searchParams])
 
@@ -178,6 +184,13 @@ export default function AdminShell({
               <ClientsClient
                 companyName={companyName}
                 clients={clients}
+                embedded
+              />
+            )}
+            {activeTab === 'departments' && (
+              <DepartmentsClient
+                companyName={companyName}
+                departments={departments}
                 embedded
               />
             )}

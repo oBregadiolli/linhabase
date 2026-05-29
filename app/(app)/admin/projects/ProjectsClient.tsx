@@ -26,7 +26,7 @@ interface ProjectsClientProps {
   embedded?: boolean
 }
 
-export default function ProjectsClient({ companyName, projects, clients = [], embedded }: ProjectsClientProps) {
+export default function ProjectsClient({ companyName, projects, clients, embedded }: ProjectsClientProps) {
   const router = useRouter()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
@@ -37,14 +37,10 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
   const inactiveProjects = projects.filter(p => !p.active)
 
   // Filtered projects
-  // Build client lookup for display
-  const clientMap = new Map(clients.map(c => [c.id, c]))
-
   const filteredProjects = projects.filter(p => {
-    const q = search.toLowerCase()
     const matchesSearch = search === '' ||
-      p.name.toLowerCase().includes(q) ||
-      p.code.toLowerCase().includes(q)
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.code?.toLowerCase().includes(search.toLowerCase())
     const matchesStatus = filterStatus === 'all' ||
       (filterStatus === 'active' && p.active) ||
       (filterStatus === 'inactive' && !p.active)
@@ -177,6 +173,9 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
                       Projeto
                     </th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                      Código
+                    </th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                       Cor
                     </th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
@@ -193,7 +192,7 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
                 <tbody className="divide-y divide-gray-100">
                   {filteredProjects.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-5 py-12 text-center">
+                      <td colSpan={6} className="px-5 py-12 text-center">
                         <FolderOpen className="h-8 w-8 text-gray-300 mx-auto mb-2" />
                         <p className="text-sm text-gray-500 font-medium">
                           {search ? 'Nenhum projeto encontrado.' : 'Nenhum projeto cadastrado.'}
@@ -232,14 +231,14 @@ export default function ProjectsClient({ companyName, projects, clients = [], em
 
       {/* Modals */}
       {showCreateModal && (
-        <ProjectModal clients={clients} onClose={() => setShowCreateModal(false)} onSuccess={handleRefresh} />
+        <ProjectModal onClose={() => setShowCreateModal(false)} onSuccess={handleRefresh} clients={clients} />
       )}
       {editingProject && (
         <ProjectModal
           project={editingProject}
-          clients={clients}
           onClose={() => setEditingProject(null)}
           onSuccess={handleRefresh}
+          clients={clients}
         />
       )}
     </div>
@@ -292,11 +291,24 @@ function ProjectRow({
                 'font-medium truncate',
                 project.active ? 'text-gray-900' : 'text-gray-500'
               )}>
-                <span className="font-mono text-[11px] text-gray-400 mr-1.5">{project.code}</span>
                 {project.name}
               </p>
+              {project.client_id && (
+                <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">
+                  <Building2 className="h-3 w-3 shrink-0" />
+                  Cliente vinculado
+                </p>
+              )}
             </div>
           </div>
+        </td>
+
+        {/* Code */}
+        <td className="px-4 py-3.5 hidden sm:table-cell">
+          <span className="inline-flex items-center gap-1 text-xs font-mono text-gray-500 bg-gray-50 rounded-md px-2 py-1 ring-1 ring-gray-200/60">
+            <Hash className="h-3 w-3 text-gray-400 shrink-0" />
+            {project.code}
+          </span>
         </td>
 
         {/* Color swatch */}
@@ -365,7 +377,7 @@ function ProjectRow({
 
       {error && (
         <tr>
-          <td colSpan={5} className="px-5 py-2">
+          <td colSpan={6} className="px-5 py-2">
             <div className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">
               <XCircle className="h-3.5 w-3.5 shrink-0" />
               <span>{error}</span>
@@ -380,12 +392,13 @@ function ProjectRow({
 // ── Project Modal (create / edit) ─────────────────────────────
 
 function ProjectModal({
-  project, onClose, onSuccess, clients = [],
+  project, onClose, onSuccess, clients,
 }: {
-  project?: Project; clients?: Client[]; onClose: () => void; onSuccess: () => void
+  project?: Project; onClose: () => void; onSuccess: () => void; clients?: Client[]
 }) {
   const isEdit = !!project
   const [name, setName] = useState(project?.name ?? '')
+  const [code, setCode] = useState(project?.code ?? '')
   const [color, setColor] = useState(project?.color ?? COLOR_PRESETS[0])
   const [clientId, setClientId] = useState<string>(project?.client_id ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -396,9 +409,11 @@ function ProjectModal({
     setError(null)
 
     startTransition(async () => {
+      const trimmedCode = code.trim() || undefined
+      const selectedClient = clientId || null
       const result = isEdit
-        ? await updateProject(project!.id, name, color, clientId || null)
-        : await createProject(name, color, clientId || null)
+        ? await updateProject(project!.id, name, color, trimmedCode, selectedClient)
+        : await createProject(name, color, trimmedCode, selectedClient)
 
       if (result.success) {
         onSuccess()
@@ -427,7 +442,7 @@ function ProjectModal({
             </button>
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {isEdit ? 'Atualize o nome e a cor do projeto.' : 'Defina o nome e a cor para identificar o projeto.'}
+            {isEdit ? 'Atualize o nome, código e cor do projeto.' : 'Defina o nome, código e cor para identificar o projeto.'}
           </p>
         </div>
 
@@ -451,6 +466,55 @@ function ProjectModal({
                 autoFocus
               />
             </div>
+
+            {/* Code */}
+            <div>
+              <label htmlFor="project-code" className="block text-sm font-medium text-gray-700 mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Hash className="h-3.5 w-3.5" />
+                  Código
+                </div>
+              </label>
+              <input
+                id="project-code"
+                type="text"
+                maxLength={8}
+                value={code}
+                onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                placeholder={isEdit ? project?.code : 'Gerado automaticamente'}
+                className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 font-mono uppercase placeholder:text-gray-400 placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors"
+                disabled={isPending}
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Máx. 8 caracteres alfanuméricos. Deixe vazio para gerar automaticamente.
+              </p>
+            </div>
+
+            {/* Client */}
+            {clients && clients.length > 0 && (
+              <div>
+                <label htmlFor="project-client" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5" />
+                    Cliente (opcional)
+                  </div>
+                </label>
+                <select
+                  id="project-client"
+                  value={clientId}
+                  onChange={e => setClientId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors bg-white"
+                  disabled={isPending}
+                >
+                  <option value="">Sem cliente</option>
+                  {clients.filter(c => c.active).map(c => (
+                    <option key={c.id} value={c.id}>
+                      [{c.code}] {c.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Color */}
             <div>
@@ -487,32 +551,6 @@ function ProjectModal({
               </div>
             </div>
 
-            {/* Client (optional) */}
-            {clients.length > 0 && (
-              <div>
-                <label htmlFor="project-client" className="block text-sm font-medium text-gray-700 mb-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Building2 className="h-3.5 w-3.5" />
-                    Cliente (opcional)
-                  </div>
-                </label>
-                <select
-                  id="project-client"
-                  value={clientId}
-                  onChange={e => setClientId(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8] transition-colors"
-                  disabled={isPending}
-                >
-                  <option value="">Sem cliente</option>
-                  {clients.filter(c => c.active).map(c => (
-                    <option key={c.id} value={c.id}>
-                      [{c.code}] {c.description}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             {/* Preview */}
             <div className="flex items-center gap-3 py-3 px-4 rounded-xl bg-gray-50 border border-gray-100">
               <div
@@ -526,7 +564,7 @@ function ProjectModal({
                   {name || 'Nome do projeto'}
                 </p>
                 <p className="text-[10px] text-gray-400 font-mono uppercase mt-0.5">
-                  {color || '#94a3b8'}
+                  {code || (isEdit ? project?.code : 'AUTO')} · {color || '#94a3b8'}
                 </p>
               </div>
               <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5 ring-1 ring-emerald-200/60">

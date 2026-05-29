@@ -13,11 +13,17 @@ export interface ProjectResult {
 export async function createProject(
   name: string,
   color: string | null,
+  code?: string,
   clientId?: string | null
 ): Promise<ProjectResult> {
   const trimmedName = name.trim()
   if (!trimmedName || trimmedName.length > 100) {
     return { success: false, error: 'Nome do projeto é obrigatório (máx. 100 caracteres).' }
+  }
+
+  // Validate code format if provided
+  if (code && !/^[A-Z0-9]{1,8}$/.test(code)) {
+    return { success: false, error: 'Código deve ter 1-8 caracteres alfanuméricos (A-Z, 0-9).' }
   }
 
   const membership = await getCurrentMembership()
@@ -35,12 +41,16 @@ export async function createProject(
       company_id: membership.company.id,
       name: trimmedName,
       color: color?.trim() || null,
-      client_id: clientId || null,
       created_by: user.id,
+      ...(code ? { code } : {}),
+      client_id: clientId || null,
     })
 
   if (error) {
     if (error.code === '23505') {
+      if (error.message?.includes('code')) {
+        return { success: false, error: 'Já existe um projeto com este código.' }
+      }
       return { success: false, error: 'Já existe um projeto com este nome.' }
     }
     console.error('Failed to create project:', error)
@@ -56,11 +66,17 @@ export async function updateProject(
   projectId: string,
   name: string,
   color: string | null,
+  code?: string,
   clientId?: string | null
 ): Promise<ProjectResult> {
   const trimmedName = name.trim()
   if (!trimmedName || trimmedName.length > 100) {
     return { success: false, error: 'Nome do projeto é obrigatório (máx. 100 caracteres).' }
+  }
+
+  // Validate code format if provided
+  if (code && !/^[A-Z0-9]{1,8}$/.test(code)) {
+    return { success: false, error: 'Código deve ter 1-8 caracteres alfanuméricos (A-Z, 0-9).' }
   }
 
   const membership = await getCurrentMembership()
@@ -87,12 +103,16 @@ export async function updateProject(
     .update({
       name: trimmedName,
       color: color?.trim() || null,
+      ...(code ? { code } : {}),
       client_id: clientId !== undefined ? (clientId || null) : undefined,
     })
     .eq('id', projectId)
 
   if (error) {
     if (error.code === '23505') {
+      if (error.message?.includes('code')) {
+        return { success: false, error: 'Já existe um projeto com este código.' }
+      }
       return { success: false, error: 'Já existe um projeto com este nome.' }
     }
     console.error('Failed to update project:', error)

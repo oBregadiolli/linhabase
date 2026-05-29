@@ -20,6 +20,7 @@ import AdminShell from './AdminShell'
 
 interface EnrichedMember extends CompanyMember {
   profile_name: string | null
+  profile_code: string | null
 }
 
 export default async function AdminPage() {
@@ -40,11 +41,13 @@ export default async function AdminPage() {
     { data: revokedInvitations },
     { data: companyProjects },
     { data: companyClients },
+    { data: companyDepartments },
+    { data: companyTeams },
   ] = await Promise.all([
     // Timesheets: member profiles for filter dropdown
     supabase
       .from('profiles')
-      .select('id, name, email, avatar_url')
+      .select('id, name, email, avatar_url, code')
       .in('id', memberIds)
       .order('name', { ascending: true }),
 
@@ -89,19 +92,34 @@ export default async function AdminPage() {
       .eq('company_id', companyId)
       .order('active', { ascending: false })
       .order('description', { ascending: true }),
+
+    // Departments: all company departments
+    supabase
+      .from('departments')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('name', { ascending: true }),
+
+    // Teams: all company teams
+    supabase
+      .from('teams')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('name', { ascending: true }),
   ])
 
   // Build profile map for team enrichment
-  const profileMap: Record<string, { name: string; email: string }> = {}
+  const profileMap: Record<string, { name: string; email: string; code: string }> = {}
   if (memberProfiles) {
     for (const p of memberProfiles) {
-      profileMap[p.id] = { name: p.name, email: p.email }
+      profileMap[p.id] = { name: p.name, email: p.email, code: p.code }
     }
   }
 
   const enrichedMembers: EnrichedMember[] = (rawMembers ?? []).map(m => ({
     ...m,
     profile_name: m.user_id ? profileMap[m.user_id]?.name ?? null : null,
+    profile_code: m.user_id ? profileMap[m.user_id]?.code ?? null : null,
   }))
 
   // Get admin profile for the sidebar
@@ -128,6 +146,21 @@ export default async function AdminPage() {
         revokedInvitations={(revokedInvitations ?? []) as Invitation[]}
         // Clients data
         clients={(companyClients ?? []) as Client[]}
+        // Departments data (enriched with nested teams + member counts)
+        departments={(() => {
+          const depts = companyDepartments ?? []
+          const allTeams = companyTeams ?? []
+          const members = rawMembers ?? []
+          return depts.map(d => ({
+            ...d,
+            teams: allTeams
+              .filter(t => t.department_id === d.id)
+              .map(t => ({
+                ...t,
+                member_count: members.filter(m => m.team_id === t.id).length,
+              })),
+          }))
+        })()}
       />
     </Suspense>
   )

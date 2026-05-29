@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight, Shield, Users, FolderOpen, Building2 } from 'lucide-react'
+import { ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight, Shield, Users, FolderOpen, Building2, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
@@ -74,6 +74,13 @@ export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin, onAdm
           href: '/admin?tab=clients',
           icon: Building2,
           active: isAdminPage && localAdminTab === 'clients',
+        },
+        {
+          label: 'Departamentos',
+          tab: 'departments',
+          href: '/admin?tab=departments',
+          icon: Network,
+          active: isAdminPage && localAdminTab === 'departments',
         },
       ]
     : []

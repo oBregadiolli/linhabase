@@ -104,7 +104,11 @@ function QuickEntry({
 
     if (existingId) query = query.neq('id', existingId)
 
-    const { data } = await query
+    const { data, error } = await query
+    if (error) {
+      console.error('checkOverlap query failed:', error)
+      return null
+    }
     if (data && data.length > 0) {
       const hit = data[0] as ConflictEntry
       return hit
@@ -114,6 +118,15 @@ function QuickEntry({
 
   async function persist(startTime: string, endTime: string, totalMinutes: number) {
     if (existingId) {
+      // Guard: do not overwrite submitted or approved entries from the grid
+      const { data: existing } = await supabase
+        .from('timesheets')
+        .select('status')
+        .eq('id', existingId)
+        .single()
+      if (existing && (existing.status === 'submitted' || existing.status === 'approved')) {
+        return { error: { message: 'Este apontamento já foi enviado/aprovado. Use o formulário de edição.', code: 'STATUS_LOCKED' } }
+      }
       return await supabase.from('timesheets').update({
         start_time: startTime,
         end_time: endTime,
@@ -167,23 +180,31 @@ function QuickEntry({
 
     const endTotalMin = startMinutes + totalMinutes
 
-    if (endTotalMin > 24 * 60) {
+    if (endTotalMin >= 24 * 60) {
       toast('Não é possível lançar. O horário final ultrapassa as 24h do dia.', 'warning')
       setSaving(false)
       return
     }
 
-    const endHour = Math.floor(endTotalMin / 60) % 24
+    const endHour = Math.floor(endTotalMin / 60)
     const endMin  = endTotalMin % 60
     const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`
 
     const { error } = await persist(startTime, endTime, totalMinutes)
     // Fallback: DB constraint fired (race condition / another writer)
     if (error) {
+      // Status-locked entries get a specific message
+      if ('code' in error && error.code === 'STATUS_LOCKED') {
+        toast(error.message, 'warning')
+        setSaving(false)
+        setEditing(false)
+        return
+      }
       const hit = await checkOverlap(startTime, endTime)
       if (hit) {
         setConflict(hit)
       } else {
+        console.error('persist() failed:', error)
         toast('Ocorreu um erro ao salvar o apontamento.', 'error')
       }
       setSaving(false)
@@ -202,22 +223,39 @@ function QuickEntry({
     if (isNaN(h) || h <= 0 || h > 24) return
 
     setReplacing(true)
-    const startTime = '08:00:00'
+
+    // Use the conflict's start_time as our new start (instead of hardcoded 08:00)
+    const [cHH, cMM] = conflict.start_time.split(':').map(Number)
+    const replaceStartMin = cHH * 60 + cMM
     const totalMinutes = Math.round(h * 60)
-    const endHour = Math.floor((totalMinutes + 8 * 60) / 60) % 24
-    const endMin = (totalMinutes + 8 * 60) % 60
-    const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`
+    const replaceEndMin = replaceStartMin + totalMinutes
+
+    if (replaceEndMin >= 24 * 60) {
+      toast('Não é possível substituir. O horário final ultrapassa as 24h do dia.', 'warning')
+      setReplacing(false)
+      return
+    }
+
+    const startTime = `${String(Math.floor(replaceStartMin / 60)).padStart(2, '0')}:${String(replaceStartMin % 60).padStart(2, '0')}:00`
+    const endTime = `${String(Math.floor(replaceEndMin / 60)).padStart(2, '0')}:${String(replaceEndMin % 60).padStart(2, '0')}:00`
 
     const { error: delErr } = await supabase.from('timesheets').delete().eq('id', conflict.id)
     if (delErr) {
+      console.error('handleReplace delete failed:', delErr)
+      toast('Erro ao remover o apontamento conflitante.', 'error')
       setReplacing(false)
       return
     }
 
     const { error } = await persist(startTime, endTime, totalMinutes)
     if (error) {
+      console.error('handleReplace persist failed:', error)
       const hit2 = await checkOverlap(startTime, endTime)
-      if (hit2) setConflict(hit2)
+      if (hit2) {
+        setConflict(hit2)
+      } else {
+        toast('Erro ao salvar o novo apontamento.', 'error')
+      }
       setReplacing(false)
       return
     }
@@ -231,8 +269,8 @@ function QuickEntry({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') handleSave()
-    if (e.key === 'Escape') { setEditing(false); setHours('') }
+    if (e.key === 'Enter' && !saving && !replacing) handleSave()
+    if (e.key === 'Escape') { setEditing(false); setHours(''); setConflict(null) }
   }
 
   if (editing) {
@@ -312,7 +350,10 @@ export default function QuickXYView({
   useEffect(() => {
     supabase.from('company_members').select('company_id')
       .eq('user_id', userId).eq('status', 'active').limit(1).maybeSingle()
-      .then(({ data }) => setCompanyId(data?.company_id ?? null))
+      .then(({ data, error }) => {
+        if (error) console.error('Failed to fetch companyId:', error)
+        setCompanyId(data?.company_id ?? null)
+      })
   }, [supabase, userId])
 
   const { rangeStart, rangeEnd } = useMemo(() => {
@@ -332,14 +373,17 @@ export default function QuickXYView({
   const fetchData = useCallback(async () => {
     const gen = ++fetchGenRef.current
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('timesheets')
-      .select('*')
+      .select('id, project_id, date, start_time, end_time, duration_minutes, status, company_id, user_id, code, description, rejection_reason, created_at, updated_at')
       .eq('user_id', userId)
       .gte('date', isoDate(rangeStart))
       .lte('date', isoDate(rangeEnd))
       .order('date', { ascending: true })
     if (gen !== fetchGenRef.current) return
+    if (error) {
+      console.error('fetchData failed:', error)
+    }
     setTimesheets((data ?? []) as Timesheet[])
     setLoading(false)
   }, [supabase, userId, rangeStart, rangeEnd])

@@ -69,7 +69,7 @@ function QuickEntry({
   onEdit,
   existingId,
   entryCount,
-  isLocked,
+  lockedIds,
   resolveProjectName,
 }: {
   date: string
@@ -81,7 +81,7 @@ function QuickEntry({
   onEdit: (id: string) => void
   existingId: string | null
   entryCount: number
-  isLocked: boolean
+  lockedIds: string[]
   resolveProjectName: (projectId: string | null) => string
 }) {
   const [editing, setEditing] = useState(false)
@@ -151,9 +151,12 @@ function QuickEntry({
     })
   }
 
+  const primaryIsLocked = !!(existingId && lockedIds.includes(existingId))
+  const isFullyLocked = entryCount > 0 && lockedIds.length === entryCount
+
   async function handleSave() {
-    // If entry is locked (submitted/approved), don't allow inline save
-    if (isLocked && existingId) {
+    // Block inline save only when the primary entry in this cell is locked
+    if (primaryIsLocked && existingId) {
       onEdit(existingId)
       setEditing(false)
       setHours('')
@@ -324,8 +327,8 @@ function QuickEntry({
     )
   }
 
-  // If locked (submitted/approved), show value with lock icon — click opens edit dialog
-  if (existingMinutes > 0 && isLocked) {
+  // All entries locked — show value with lock icon
+  if (existingMinutes > 0 && isFullyLocked) {
     return (
       <button
         onClick={() => existingId ? onEdit(existingId) : undefined}
@@ -432,9 +435,14 @@ export default function QuickXYView({
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Build lookup: project_id → date → { minutes, id (first), ids (all), entryCount, locked }
+  // Build lookup: project_id → date → aggregated cell metadata
   const matrix = useMemo(() => {
-    const m = new Map<string, Map<string, { minutes: number; id: string; ids: string[]; entryCount: number; locked: boolean }>>()
+    const m = new Map<string, Map<string, {
+      minutes: number
+      ids: string[]
+      entryCount: number
+      lockedIds: string[]
+    }>>()
     for (const t of timesheets) {
       if (!t.project_id) continue
       if (!m.has(t.project_id)) m.set(t.project_id, new Map())
@@ -442,10 +450,9 @@ export default function QuickXYView({
       const isEntryLocked = t.status === 'submitted' || t.status === 'approved'
       m.get(t.project_id)!.set(t.date, {
         minutes: (prev?.minutes ?? 0) + (t.duration_minutes ?? 0),
-        id: prev?.id ?? t.id,
         ids: [...(prev?.ids ?? []), t.id],
         entryCount: (prev?.entryCount ?? 0) + 1,
-        locked: (prev?.locked ?? false) || isEntryLocked,
+        lockedIds: [...(prev?.lockedIds ?? []), ...(isEntryLocked ? [t.id] : [])],
       })
     }
     return m
@@ -583,6 +590,8 @@ export default function QuickXYView({
                       {/* Day cells — interactive */}
                       {days.map(day => {
                         const entry = dayMap?.get(day)
+                        const lockedIds = entry?.lockedIds ?? []
+                        const primaryId = entry?.ids.find(id => !lockedIds.includes(id)) ?? entry?.ids[0] ?? null
                         return (
                           <td
                             key={day}
@@ -596,9 +605,9 @@ export default function QuickXYView({
                               date={day}
                               project={proj}
                               existingMinutes={entry?.minutes ?? 0}
-                              existingId={entry?.id ?? null}
+                              existingId={primaryId}
                               entryCount={entry?.entryCount ?? 0}
-                              isLocked={entry?.locked ?? false}
+                              lockedIds={lockedIds}
                               userId={userId}
                               companyId={companyId}
                               onSuccess={handleSuccess}

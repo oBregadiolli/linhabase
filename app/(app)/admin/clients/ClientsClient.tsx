@@ -1,44 +1,38 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Pencil, Power, PowerOff,
   XCircle, Check, X, Search, Hash, Calendar
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { createClientRecord, updateClientRecord, toggleClientActive } from './actions'
-
-// ── Local Client type ─────────────────────────────────────────
-interface Client {
-  id: string
-  company_id: string
-  code: string
-  description: string
-  active: boolean
-  created_at: string
-  updated_at: string
-}
+import { createClientRecord, updateClientRecord, toggleClientActive, type ClientRow } from './actions'
 
 interface ClientsClientProps {
   companyName: string
-  clients: Client[]
+  clients: ClientRow[]
   /** When true, skip the outer wrapper & topbar (rendered by AdminShell) */
   embedded?: boolean
 }
 
-export default function ClientsClient({ companyName, clients, embedded }: ClientsClientProps) {
+export default function ClientsClient({ companyName, clients: initialClients, embedded }: ClientsClientProps) {
   const router = useRouter()
+  const [clientList, setClientList] = useState(initialClients)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [editingClient, setEditingClient] = useState<ClientRow | null>(null)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
 
-  const activeClients = clients.filter(c => c.active)
-  const inactiveClients = clients.filter(c => !c.active)
+  useEffect(() => {
+    setClientList(initialClients)
+  }, [initialClients])
+
+  const activeClients = clientList.filter(c => c.active)
+  const inactiveClients = clientList.filter(c => !c.active)
 
   // Filtered clients
-  const filteredClients = clients.filter(c => {
+  const filteredClients = clientList.filter(c => {
     const matchesSearch = search === '' ||
       c.description.toLowerCase().includes(search.toLowerCase()) ||
       c.code?.toLowerCase().includes(search.toLowerCase())
@@ -48,10 +42,22 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
     return matchesSearch && matchesStatus
   })
 
-  function handleRefresh() {
+  function closeModals() {
     setShowCreateModal(false)
     setEditingClient(null)
-    router.refresh()
+  }
+
+  function applyClientUpdate(updated: ClientRow, mode: 'create' | 'update') {
+    setClientList(prev =>
+      mode === 'create' ? [...prev, updated] : prev.map(c => (c.id === updated.id ? updated : c))
+    )
+    closeModals()
+    if (!embedded) router.refresh()
+  }
+
+  function applyClientToggle(updated: ClientRow) {
+    setClientList(prev => prev.map(c => (c.id === updated.id ? updated : c)))
+    if (!embedded) router.refresh()
   }
 
   return (
@@ -96,7 +102,7 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Total</p>
-                  <p className="text-2xl font-bold text-gray-900">{clients.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">{clientList.length}</p>
                 </div>
               </div>
 
@@ -206,7 +212,7 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
                         key={client.id}
                         client={client}
                         onEdit={() => setEditingClient(client)}
-                        onRefresh={handleRefresh}
+                        onToggle={applyClientToggle}
                       />
                     ))
                   )}
@@ -229,13 +235,14 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
 
       {/* Modals */}
       {showCreateModal && (
-        <ClientModal onClose={() => setShowCreateModal(false)} onSuccess={handleRefresh} />
+        <ClientModal onClose={() => setShowCreateModal(false)} onSuccess={applyClientUpdate} mode="create" />
       )}
       {editingClient && (
         <ClientModal
           client={editingClient}
           onClose={() => setEditingClient(null)}
-          onSuccess={handleRefresh}
+          onSuccess={applyClientUpdate}
+          mode="update"
         />
       )}
     </div>
@@ -245,9 +252,9 @@ export default function ClientsClient({ companyName, clients, embedded }: Client
 // ── Client Row (table) ────────────────────────────────────────
 
 function ClientRow({
-  client, onEdit, onRefresh,
+  client, onEdit, onToggle,
 }: {
-  client: Client; onEdit: () => void; onRefresh: () => void
+  client: ClientRow; onEdit: () => void; onToggle: (updated: ClientRow) => void
 }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -256,8 +263,8 @@ function ClientRow({
     setError(null)
     startTransition(async () => {
       const result = await toggleClientActive(client.id, !client.active)
-      if (result.success) {
-        onRefresh()
+      if (result.success && result.data) {
+        onToggle(result.data)
       } else {
         setError(result.error ?? 'Erro ao alterar status.')
       }
@@ -367,11 +374,14 @@ function ClientRow({
 // ── Client Modal (create / edit) ──────────────────────────────
 
 function ClientModal({
-  client, onClose, onSuccess,
+  client, onClose, onSuccess, mode,
 }: {
-  client?: Client; onClose: () => void; onSuccess: () => void
+  client?: ClientRow
+  onClose: () => void
+  onSuccess: (updated: ClientRow, mode: 'create' | 'update') => void
+  mode: 'create' | 'update'
 }) {
-  const isEdit = !!client
+  const isEdit = mode === 'update'
   const [description, setDescription] = useState(client?.description ?? '')
   const [code, setCode] = useState(client?.code ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -387,8 +397,8 @@ function ClientModal({
         ? await updateClientRecord(client!.id, description, trimmedCode)
         : await createClientRecord(description, trimmedCode)
 
-      if (result.success) {
-        onSuccess()
+      if (result.success && result.data) {
+        onSuccess(result.data, isEdit ? 'update' : 'create')
       } else {
         setError(result.error ?? 'Erro desconhecido.')
       }

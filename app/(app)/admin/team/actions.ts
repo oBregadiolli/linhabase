@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentMembership } from '@/lib/supabase/membership'
 import { sendInviteEmail } from '@/lib/email/send-invite'
+import type { CompanyMember, Invitation } from '@/lib/types/database.types'
 import { randomUUID } from 'crypto'
 
 export interface InviteResult {
@@ -280,4 +281,82 @@ export async function resendInvitation(invitationId: string): Promise<InviteResu
   }
 
   return { success: true, emailSent: true }
+}
+
+export interface EnrichedTeamMember extends CompanyMember {
+  profile_name: string | null
+  profile_code: string | null
+}
+
+/** Lightweight refetch for team tab — avoids full admin page refresh. */
+export async function fetchTeamAdminData(): Promise<{
+  success: boolean
+  error?: string
+  members?: EnrichedTeamMember[]
+  pendingInvitations?: Invitation[]
+  revokedInvitations?: Invitation[]
+}> {
+  const membership = await getCurrentMembership()
+  if (!membership || membership.member.role !== 'admin') {
+    return { success: false, error: 'Acesso negado.' }
+  }
+
+  const supabase = await createClient()
+  const companyId = membership.company.id
+
+  const [
+    { data: rawMembers },
+    { data: pendingInvitations },
+    { data: revokedInvitations },
+  ] = await Promise.all([
+    supabase
+      .from('company_members')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('status', { ascending: true })
+      .order('email', { ascending: true }),
+    supabase
+      .from('invitations')
+      .select('*')
+      .eq('company_id', companyId)
+      .is('accepted_at', null)
+      .is('revoked_at', null)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('invitations')
+      .select('*')
+      .eq('company_id', companyId)
+      .not('revoked_at', 'is', null)
+      .is('accepted_at', null)
+      .order('created_at', { ascending: false }),
+  ])
+
+  const userIds = (rawMembers ?? [])
+    .map(m => m.user_id)
+    .filter((id): id is string => !!id)
+
+  const profileMap: Record<string, { name: string; code: string }> = {}
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, name, code')
+      .in('id', userIds)
+
+    for (const p of profiles ?? []) {
+      profileMap[p.id] = { name: p.name, code: p.code }
+    }
+  }
+
+  const members: EnrichedTeamMember[] = (rawMembers ?? []).map(m => ({
+    ...m,
+    profile_name: m.user_id ? profileMap[m.user_id]?.name ?? null : null,
+    profile_code: m.user_id ? profileMap[m.user_id]?.code ?? null : null,
+  }))
+
+  return {
+    success: true,
+    members,
+    pendingInvitations: pendingInvitations ?? [],
+    revokedInvitations: revokedInvitations ?? [],
+  }
 }

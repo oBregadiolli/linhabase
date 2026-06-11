@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useTransition, useMemo } from 'react'
 import {
   DollarSign, Plus, Pencil, Trash2, Calendar,
   XCircle, Check, X, Loader2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getMemberRates, createMemberRate, updateMemberRate, deleteMemberRate } from './rates-actions'
+import { createClient } from '@/lib/supabase/client'
+import { createMemberRate, updateMemberRate, deleteMemberRate } from './rates-actions'
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ function formatCurrency(value: number): string {
 // ── Main Component ────────────────────────────────────────────
 
 export default function MemberRatesPanel({ userId, memberName, companyId }: MemberRatesPanelProps) {
+  const supabase = useMemo(() => createClient(), [])
   const [rates, setRates] = useState<MemberRate[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -79,24 +81,31 @@ export default function MemberRatesPanel({ userId, memberName, companyId }: Memb
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
-  // ── Fetch rates on mount ──────────────────────────────────
+  // ── Fetch rates on mount (direct client query — RLS enforces admin/owner read) ──
   useEffect(() => {
     loadRates()
-  }, [userId])
+  }, [userId, companyId])
 
   async function loadRates() {
     setLoading(true)
-    try {
-      const result = await getMemberRates(userId)
-      if (result.success && result.data) {
-        setRates(result.data)
-      }
-    } catch {
-      // silently handle
-    } finally {
-      setLoading(false)
+    setFetchError(null)
+    const { data, error } = await supabase
+      .from('member_rates')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('user_id', userId)
+      .order('start_date', { ascending: false })
+
+    if (error) {
+      console.error('Failed to fetch member rates:', error)
+      setFetchError('Erro ao carregar taxas do membro.')
+      setRates([])
+    } else {
+      setRates((data ?? []) as MemberRate[])
     }
+    setLoading(false)
   }
 
   // ── Handlers ──────────────────────────────────────────────
@@ -171,6 +180,9 @@ export default function MemberRatesPanel({ userId, memberName, companyId }: Memb
       </div>
 
       {/* Content */}
+      {fetchError && (
+        <p className="px-4 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100">{fetchError}</p>
+      )}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-5 w-5 text-gray-300 animate-spin" />

@@ -3,9 +3,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentMembership } from '@/lib/supabase/membership'
 
+export interface ClientRow {
+  id: string
+  company_id: string
+  code: string
+  description: string
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface ClientResult {
   success: boolean
   error?: string
+  data?: ClientRow
 }
 
 // ── Create ────────────────────────────────────────────────────
@@ -19,7 +30,6 @@ export async function createClientRecord(
     return { success: false, error: 'Descrição do cliente é obrigatória (máx. 200 caracteres).' }
   }
 
-  // Validate code format if provided
   if (code && !/^[A-Z0-9]{1,8}$/.test(code)) {
     return { success: false, error: 'Código deve ter 1-8 caracteres alfanuméricos (A-Z, 0-9).' }
   }
@@ -31,13 +41,15 @@ export async function createClientRecord(
 
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('clients')
     .insert({
       company_id: membership.company.id,
       description: trimmedDescription,
       ...(code ? { code } : {}),
     })
+    .select('*')
+    .single()
 
   if (error) {
     if (error.code === '23505') {
@@ -50,7 +62,7 @@ export async function createClientRecord(
     return { success: false, error: 'Erro ao criar cliente.' }
   }
 
-  return { success: true }
+  return { success: true, data }
 }
 
 // ── Update ────────────────────────────────────────────────────
@@ -66,7 +78,6 @@ export async function updateClientRecord(
     return { success: false, error: 'Descrição do cliente é obrigatória (máx. 200 caracteres).' }
   }
 
-  // Validate code format if provided
   if (code && !/^[A-Z0-9]{1,8}$/.test(code)) {
     return { success: false, error: 'Código deve ter 1-8 caracteres alfanuméricos (A-Z, 0-9).' }
   }
@@ -78,7 +89,6 @@ export async function updateClientRecord(
 
   const supabase = await createClient()
 
-  // Verify client belongs to this company
   const { data: client } = await supabase
     .from('clients')
     .select('id, company_id')
@@ -90,7 +100,7 @@ export async function updateClientRecord(
     return { success: false, error: 'Acesso negado.' }
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('clients')
     .update({
       description: trimmedDescription,
@@ -98,6 +108,8 @@ export async function updateClientRecord(
       ...(active !== undefined ? { active } : {}),
     })
     .eq('id', clientId)
+    .select('*')
+    .single()
 
   if (error) {
     if (error.code === '23505') {
@@ -110,7 +122,7 @@ export async function updateClientRecord(
     return { success: false, error: 'Erro ao atualizar cliente.' }
   }
 
-  return { success: true }
+  return { success: true, data }
 }
 
 // ── Toggle active ─────────────────────────────────────────────
@@ -137,24 +149,26 @@ export async function toggleClientActive(
     return { success: false, error: 'Acesso negado.' }
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('clients')
     .update({ active })
     .eq('id', clientId)
+    .select('*')
+    .single()
 
   if (error) {
     console.error('Failed to toggle client:', error)
     return { success: false, error: 'Erro ao alterar status do cliente.' }
   }
 
-  return { success: true }
+  return { success: true, data }
 }
 
 // ── List ──────────────────────────────────────────────────────
 
 export async function getClientsForCompany(): Promise<{
   success: boolean
-  data?: any[]
+  data?: ClientRow[]
   error?: string
 }> {
   const membership = await getCurrentMembership()

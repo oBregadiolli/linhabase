@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { usePathname, useSearchParams, useRouter } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight, Shield, Users, FolderOpen, Building2, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -26,7 +26,6 @@ export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin, onAdm
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const router = useRouter()
   const currentTab = searchParams.get('tab') || ''
   const [localAdminTab, setLocalAdminTab] = useState(currentTab)
 
@@ -44,6 +43,7 @@ export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin, onAdm
   ]
 
   const isAdminPage = pathname === '/admin' || pathname.startsWith('/admin')
+  const isUnifiedAdminPage = pathname === '/admin'
 
   const adminItems = isAdmin
     ? [
@@ -85,19 +85,12 @@ export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin, onAdm
       ]
     : []
 
-  // SPA-like tab switch: if already on /admin, just replace the query param
-  const handleAdminClick = useCallback((tab: string, href: string, e: React.MouseEvent) => {
-    if (isAdminPage) {
-      e.preventDefault()
-      setLocalAdminTab(tab)
-      const nextUrl = `/admin?tab=${tab}`
-      window.history.replaceState(null, '', nextUrl)
-      onAdminTabChange?.(tab)
-      // If we are not on the unified admin page for some reason, fallback to router
-      if (pathname !== '/admin') router.replace(nextUrl, { scroll: false })
-    }
-    // If NOT on admin page, let the Link navigate normally
-  }, [isAdminPage, router, pathname, localAdminTab, searchParams])
+  // Client-only tab switch on /admin — Link onNavigate preventDefault (onClick alone does not block Next.js 16 navigation)
+  const switchAdminTab = useCallback((tab: string) => {
+    setLocalAdminTab(tab)
+    window.history.replaceState(null, '', `/admin?tab=${tab}`)
+    onAdminTabChange?.(tab)
+  }, [onAdminTabChange])
 
   return (
     <aside
@@ -170,9 +163,13 @@ export default function Sidebar({ userName, userEmail, avatarUrl, isAdmin, onAdm
               <Link
                 key={href}
                 href={href}
-                replace
                 scroll={false}
-                onClick={(e) => handleAdminClick(tab, href, e)}
+                onNavigate={(e) => {
+                  if (isUnifiedAdminPage) {
+                    e.preventDefault()
+                    switchAdminTab(tab)
+                  }
+                }}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors duration-150',
                   active

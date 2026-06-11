@@ -97,10 +97,15 @@ export default function AdminShell({
 
   // Keep tab switching purely client-side to avoid re-triggering server renders on every change.
   const [activeTab, setActiveTab] = useState<AdminTab>(urlTab)
+  const [mountedTabs, setMountedTabs] = useState<Set<AdminTab>>(() => new Set([urlTab]))
 
   useEffect(() => {
     setActiveTab(urlTab)
   }, [urlTab])
+
+  useEffect(() => {
+    setMountedTabs(prev => new Set(prev).add(activeTab))
+  }, [activeTab])
 
   function setTab(tab: AdminTab) {
     setActiveTab(tab)
@@ -153,59 +158,81 @@ export default function AdminShell({
           </nav>
         </header>
 
-        {/* ── Tab content ────────────────────────────────────── */}
-        <main className="flex-1 overflow-hidden">
-          <Suspense fallback={<TabSpinner />}>
-            {activeTab === 'timesheets' && (
-              <AdminTimesheetsClient
-                companyName={companyName}
-                members={members}
-                projects={projects}
-                adminName={adminEmail}
-                embedded
-              />
-            )}
-            {activeTab === 'team' && (
-              <TeamClient
-                companyName={companyName}
-                companyId={companyId}
-                members={teamMembers}
-                pendingInvitations={pendingInvitations}
-                revokedInvitations={revokedInvitations}
-                embedded
-              />
-            )}
-            {activeTab === 'projects' && (
-              <ProjectsClient
-                companyName={companyName}
-                projects={projects}
-                clients={clients}
-                embedded
-              />
-            )}
-            {activeTab === 'clients' && (
-              <ClientsClient
-                companyName={companyName}
-                clients={clients}
-                embedded
-              />
-            )}
-            {activeTab === 'departments' && (
-              <DepartmentsClient
-                companyName={companyName}
-                departments={departments}
-                embedded
-              />
-            )}
-            {activeTab === 'xy' && (
-              <XYClient
-                companyName={companyName}
-                members={members}
-                projects={projects}
-                embedded
-              />
-            )}
-          </Suspense>
+        {/* ── Tab content (keep visited tabs mounted to preserve local state) ── */}
+        <main className="flex-1 overflow-hidden relative">
+          {mountedTabs.has('timesheets') && (
+            <div className={cn('absolute inset-0 flex flex-col overflow-hidden', activeTab !== 'timesheets' && 'hidden')}>
+              <Suspense fallback={<TabSpinner />}>
+                <AdminTimesheetsClient
+                  companyName={companyName}
+                  members={members}
+                  projects={projects}
+                  adminName={adminEmail}
+                  embedded
+                />
+              </Suspense>
+            </div>
+          )}
+          {mountedTabs.has('team') && (
+            <div className={cn('absolute inset-0 flex flex-col overflow-hidden', activeTab !== 'team' && 'hidden')}>
+              <Suspense fallback={<TabSpinner />}>
+                <TeamClient
+                  companyName={companyName}
+                  companyId={companyId}
+                  members={teamMembers}
+                  pendingInvitations={pendingInvitations}
+                  revokedInvitations={revokedInvitations}
+                  embedded
+                />
+              </Suspense>
+            </div>
+          )}
+          {mountedTabs.has('projects') && (
+            <div className={cn('absolute inset-0 flex flex-col overflow-hidden', activeTab !== 'projects' && 'hidden')}>
+              <Suspense fallback={<TabSpinner />}>
+                <ProjectsClient
+                  companyName={companyName}
+                  projects={projects}
+                  clients={clients}
+                  embedded
+                />
+              </Suspense>
+            </div>
+          )}
+          {mountedTabs.has('clients') && (
+            <div className={cn('absolute inset-0 flex flex-col overflow-hidden', activeTab !== 'clients' && 'hidden')}>
+              <Suspense fallback={<TabSpinner />}>
+                <ClientsClient
+                  companyName={companyName}
+                  clients={clients}
+                  embedded
+                />
+              </Suspense>
+            </div>
+          )}
+          {mountedTabs.has('departments') && (
+            <div className={cn('absolute inset-0 flex flex-col overflow-hidden', activeTab !== 'departments' && 'hidden')}>
+              <Suspense fallback={<TabSpinner />}>
+                <DepartmentsClient
+                  companyName={companyName}
+                  departments={departments}
+                  embedded
+                />
+              </Suspense>
+            </div>
+          )}
+          {mountedTabs.has('xy') && (
+            <div className={cn('absolute inset-0 flex flex-col overflow-hidden', activeTab !== 'xy' && 'hidden')}>
+              <Suspense fallback={<TabSpinner />}>
+                <XYClient
+                  companyName={companyName}
+                  members={members}
+                  projects={projects}
+                  embedded
+                />
+              </Suspense>
+            </div>
+          )}
         </main>
       </div>
     </div>

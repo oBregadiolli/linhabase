@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useTransition, lazy, Suspense } from 'react'
+import { useState, useTransition, lazy, Suspense, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Users, Mail, UserPlus, Clock, CheckCircle2, XCircle, Shield, User, Copy, RefreshCw, Ban, Check, AlertTriangle, Send, Hash, DollarSign } from 'lucide-react'
 
 const MemberRatesPanel = lazy(() => import('./MemberRatesPanel'))
 import { cn } from '@/lib/utils'
 import type { CompanyMember, Invitation } from '@/lib/types/database.types'
-import { createInvitation, revokeInvitation, resendInvitation } from './actions'
+import { createInvitation, revokeInvitation, resendInvitation, fetchTeamAdminData } from './actions'
 import type { InviteResult } from './actions'
 
 interface EnrichedMember extends CompanyMember {
@@ -25,18 +25,38 @@ interface TeamClientProps {
   embedded?: boolean
 }
 
-export default function TeamClient({ companyName, companyId, members, pendingInvitations, revokedInvitations, embedded }: TeamClientProps) {
+export default function TeamClient({ companyName, companyId, members: initialMembers, pendingInvitations: initialPending, revokedInvitations: initialRevoked, embedded }: TeamClientProps) {
   const router = useRouter()
+  const [memberList, setMemberList] = useState(initialMembers)
+  const [pendingList, setPendingList] = useState(initialPending)
+  const [revokedList, setRevokedList] = useState(initialRevoked)
   const [showInviteForm, setShowInviteForm] = useState(false)
   const [ratesMemberId, setRatesMemberId] = useState<string | null>(null)
 
-  const activeMembers = members.filter(m => m.status === 'active')
-  const pendingMembers = members.filter(m => m.status === 'pending')
-  const inactiveMembers = members.filter(m => m.status === 'inactive')
+  useEffect(() => { setMemberList(initialMembers) }, [initialMembers])
+  useEffect(() => { setPendingList(initialPending) }, [initialPending])
+  useEffect(() => { setRevokedList(initialRevoked) }, [initialRevoked])
+
+  const refreshTeam = useCallback(async () => {
+    if (embedded) {
+      const result = await fetchTeamAdminData()
+      if (result.success) {
+        if (result.members) setMemberList(result.members)
+        if (result.pendingInvitations) setPendingList(result.pendingInvitations)
+        if (result.revokedInvitations) setRevokedList(result.revokedInvitations)
+      }
+    } else {
+      router.refresh()
+    }
+  }, [embedded, router])
+
+  const activeMembers = memberList.filter(m => m.status === 'active')
+  const pendingMembers = memberList.filter(m => m.status === 'pending')
+  const inactiveMembers = memberList.filter(m => m.status === 'inactive')
 
   // Split pending invitations into active vs expired
-  const activePending = pendingInvitations.filter(inv => new Date(inv.expires_at) >= new Date())
-  const expiredInvitations = pendingInvitations.filter(inv => new Date(inv.expires_at) < new Date())
+  const activePending = pendingList.filter(inv => new Date(inv.expires_at) >= new Date())
+  const expiredInvitations = pendingList.filter(inv => new Date(inv.expires_at) < new Date())
 
   return (
     <div className={embedded ? 'flex flex-col flex-1 min-w-0 overflow-hidden' : 'flex h-screen bg-[#F3F4F6] overflow-hidden'}>
@@ -112,7 +132,7 @@ export default function TeamClient({ companyName, companyId, members, pendingInv
               <SummaryCard
                 icon={<Mail className="h-4 w-4" />}
                 label="Total de Convites"
-                value={String(pendingInvitations.length + revokedInvitations.length)}
+                value={String(pendingList.length + revokedList.length)}
               />
             </div>
 
@@ -169,7 +189,7 @@ export default function TeamClient({ companyName, companyId, members, pendingInv
               <Section title="Convites Enviados" count={activePending.length}>
                 <div className="divide-y divide-gray-50">
                   {activePending.map(inv => (
-                    <InvitationRow key={inv.id} invitation={inv} onRefresh={() => router.refresh()} />
+                    <InvitationRow key={inv.id} invitation={inv} onRefresh={refreshTeam} />
                   ))}
                 </div>
               </Section>
@@ -180,18 +200,18 @@ export default function TeamClient({ companyName, companyId, members, pendingInv
               <Section title="Convites Expirados" count={expiredInvitations.length}>
                 <div className="divide-y divide-gray-50">
                   {expiredInvitations.map(inv => (
-                    <InvitationRow key={inv.id} invitation={inv} onRefresh={() => router.refresh()} />
+                    <InvitationRow key={inv.id} invitation={inv} onRefresh={refreshTeam} />
                   ))}
                 </div>
               </Section>
             )}
 
             {/* ── Revoked invitations ──────────────────────── */}
-            {revokedInvitations.length > 0 && (
-              <Section title="Convites Revogados" count={revokedInvitations.length}>
+            {revokedList.length > 0 && (
+              <Section title="Convites Revogados" count={revokedList.length}>
                 <div className="divide-y divide-gray-50">
-                  {revokedInvitations.map(inv => (
-                    <InvitationRow key={inv.id} invitation={inv} onRefresh={() => router.refresh()} />
+                  {revokedList.map(inv => (
+                    <InvitationRow key={inv.id} invitation={inv} onRefresh={refreshTeam} />
                   ))}
                 </div>
               </Section>
@@ -217,7 +237,7 @@ export default function TeamClient({ companyName, companyId, members, pendingInv
           onClose={() => setShowInviteForm(false)}
           onSuccess={() => {
             setShowInviteForm(false)
-            router.refresh()
+            void refreshTeam()
           }}
         />
       )}
@@ -465,14 +485,12 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       const result = await createInvitation(email, role)
       if (result.success) {
         if (result.warning) {
-          // Invite created but email failed — show warning then close
           setWarning(result.warning)
           setSuccessState(true)
-          setTimeout(() => onSuccess(), 3000)
+          onSuccess()
         } else {
-          // Full success — email sent
           setSuccessState(true)
-          setTimeout(() => onSuccess(), 1500)
+          onSuccess()
         }
       } else {
         setError(result.error ?? 'Erro desconhecido.')

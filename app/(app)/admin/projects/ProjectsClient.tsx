@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, FolderOpen, Plus, Pencil, Power, PowerOff,
@@ -26,18 +26,23 @@ interface ProjectsClientProps {
   embedded?: boolean
 }
 
-export default function ProjectsClient({ companyName, projects, clients, embedded }: ProjectsClientProps) {
+export default function ProjectsClient({ companyName, projects: initialProjects, clients, embedded }: ProjectsClientProps) {
   const router = useRouter()
+  const [projectList, setProjectList] = useState(initialProjects)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
 
-  const activeProjects = projects.filter(p => p.active)
-  const inactiveProjects = projects.filter(p => !p.active)
+  useEffect(() => {
+    setProjectList(initialProjects)
+  }, [initialProjects])
+
+  const activeProjects = projectList.filter(p => p.active)
+  const inactiveProjects = projectList.filter(p => !p.active)
 
   // Filtered projects
-  const filteredProjects = projects.filter(p => {
+  const filteredProjects = projectList.filter(p => {
     const matchesSearch = search === '' ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.code?.toLowerCase().includes(search.toLowerCase())
@@ -47,10 +52,22 @@ export default function ProjectsClient({ companyName, projects, clients, embedde
     return matchesSearch && matchesStatus
   })
 
-  function handleRefresh() {
+  function closeModals() {
     setShowCreateModal(false)
     setEditingProject(null)
-    router.refresh()
+  }
+
+  function applyProjectUpdate(updated: Project, mode: 'create' | 'update') {
+    setProjectList(prev =>
+      mode === 'create' ? [...prev, updated] : prev.map(p => (p.id === updated.id ? updated : p))
+    )
+    closeModals()
+    if (!embedded) router.refresh()
+  }
+
+  function applyProjectToggle(updated: Project) {
+    setProjectList(prev => prev.map(p => (p.id === updated.id ? updated : p)))
+    if (!embedded) router.refresh()
   }
 
   return (
@@ -95,7 +112,7 @@ export default function ProjectsClient({ companyName, projects, clients, embedde
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Total</p>
-                  <p className="text-2xl font-bold text-gray-900">{projects.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">{projectList.length}</p>
                 </div>
               </div>
 
@@ -208,7 +225,7 @@ export default function ProjectsClient({ companyName, projects, clients, embedde
                         key={project.id}
                         project={project}
                         onEdit={() => setEditingProject(project)}
-                        onRefresh={handleRefresh}
+                        onToggle={applyProjectToggle}
                       />
                     ))
                   )}
@@ -231,13 +248,14 @@ export default function ProjectsClient({ companyName, projects, clients, embedde
 
       {/* Modals */}
       {showCreateModal && (
-        <ProjectModal onClose={() => setShowCreateModal(false)} onSuccess={handleRefresh} clients={clients} />
+        <ProjectModal onClose={() => setShowCreateModal(false)} onSuccess={applyProjectUpdate} mode="create" clients={clients} />
       )}
       {editingProject && (
         <ProjectModal
           project={editingProject}
           onClose={() => setEditingProject(null)}
-          onSuccess={handleRefresh}
+          onSuccess={applyProjectUpdate}
+          mode="update"
           clients={clients}
         />
       )}
@@ -248,9 +266,9 @@ export default function ProjectsClient({ companyName, projects, clients, embedde
 // ── Project Row (table) ───────────────────────────────────────
 
 function ProjectRow({
-  project, onEdit, onRefresh,
+  project, onEdit, onToggle,
 }: {
-  project: Project; onEdit: () => void; onRefresh: () => void
+  project: Project; onEdit: () => void; onToggle: (updated: Project) => void
 }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -259,8 +277,8 @@ function ProjectRow({
     setError(null)
     startTransition(async () => {
       const result = await toggleProjectActive(project.id, !project.active)
-      if (result.success) {
-        onRefresh()
+      if (result.success && result.data) {
+        onToggle(result.data)
       } else {
         setError(result.error ?? 'Erro ao alterar status.')
       }
@@ -392,11 +410,15 @@ function ProjectRow({
 // ── Project Modal (create / edit) ─────────────────────────────
 
 function ProjectModal({
-  project, onClose, onSuccess, clients,
+  project, onClose, onSuccess, mode, clients,
 }: {
-  project?: Project; onClose: () => void; onSuccess: () => void; clients?: Client[]
+  project?: Project
+  onClose: () => void
+  onSuccess: (updated: Project, mode: 'create' | 'update') => void
+  mode: 'create' | 'update'
+  clients?: Client[]
 }) {
-  const isEdit = !!project
+  const isEdit = mode === 'update'
   const [name, setName] = useState(project?.name ?? '')
   const [code, setCode] = useState(project?.code ?? '')
   const [color, setColor] = useState(project?.color ?? COLOR_PRESETS[0])
@@ -415,8 +437,8 @@ function ProjectModal({
         ? await updateProject(project!.id, name, color, trimmedCode, selectedClient)
         : await createProject(name, color, trimmedCode, selectedClient)
 
-      if (result.success) {
-        onSuccess()
+      if (result.success && result.data) {
+        onSuccess(result.data, isEdit ? 'update' : 'create')
       } else {
         setError(result.error ?? 'Erro desconhecido.')
       }

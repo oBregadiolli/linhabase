@@ -8,6 +8,9 @@
  * - 3 test projects
  * - 2 test clients
  * - 1 department with 1 team
+ * - Member assigned to team
+ * - Member rates (active + historical)
+ * - Member timesheets (draft, submitted, approved, rejected)
  *
  * Idempotent: safe to run multiple times.
  *
@@ -39,6 +42,32 @@ function header(title: string) {
   console.log(`\n${'─'.repeat(50)}`)
   console.log(`  ${title}`)
   console.log('─'.repeat(50))
+}
+
+function offsetDate(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+async function ensureRow(
+  supabase: ReturnType<typeof createClient>,
+  table: string,
+  id: string,
+  label: string,
+  insert: Record<string, unknown>,
+): Promise<void> {
+  const { data: existing } = await supabase.from(table).select('id').eq('id', id).maybeSingle()
+  if (existing) {
+    log('OK', `${label} exists`)
+    return
+  }
+  const { error } = await supabase.from(table).insert({ id, ...insert })
+  if (error) {
+    log('WARN', `${label}: ${error.message}`)
+  } else {
+    log('OK', `${label} created`)
+  }
 }
 
 // -- User Creation / Login ----------------------------------------------------
@@ -364,6 +393,135 @@ async function main() {
       log('WARN', `Team: ${error.message}`)
     } else {
       log('OK', 'Team created: E2E Backend')
+    }
+  }
+
+  // Assign member to team
+  const { error: teamAssignError } = await supabase
+    .from('company_members')
+    .update({ team_id: teamId })
+    .eq('company_id', E2E_COMPANY_ID)
+    .eq('user_id', member.id)
+
+  if (teamAssignError) {
+    log('WARN', `Member team assignment: ${teamAssignError.message}`)
+  } else {
+    log('OK', 'Member assigned to E2E Backend team')
+  }
+
+  // -- 7. Member rates --------------------------------------------------------
+  header('7. Member Rates')
+
+  await ensureRow(supabase, 'member_rates', 'e2e00000-0000-0000-0000-000000000501', 'Active member rate', {
+    company_id: E2E_COMPANY_ID,
+    user_id: member.id,
+    start_date: '2025-01-01',
+    end_date: null,
+    sale_rate: 200,
+    cost_rate: 100,
+  })
+
+  await ensureRow(supabase, 'member_rates', 'e2e00000-0000-0000-0000-000000000502', 'Historical member rate', {
+    company_id: E2E_COMPANY_ID,
+    user_id: member.id,
+    start_date: '2024-01-01',
+    end_date: '2024-12-31',
+    sale_rate: 150,
+    cost_rate: 80,
+  })
+
+  await supabase.auth.signOut()
+
+  // -- 8. Member timesheets (requires member login) ---------------------------
+  header('8. Member Timesheets')
+
+  const { data: memberSession } = await supabase.auth.signInWithPassword({
+    email: MEMBER_EMAIL,
+    password: MEMBER_PASSWORD,
+  })
+
+  if (!memberSession?.user) {
+    log('WARN', 'Cannot login as member — skipping timesheet seed')
+  } else {
+    const projectAlpha = 'e2e00000-0000-0000-0000-000000000101'
+    const projectBeta = 'e2e00000-0000-0000-0000-000000000102'
+    const today = offsetDate(0)
+    const yesterday = offsetDate(-1)
+    const twoDaysAgo = offsetDate(-2)
+    const threeDaysAgo = offsetDate(-3)
+
+    const timesheets = [
+      {
+        id: 'e2e00000-0000-0000-0000-000000000601',
+        label: 'Draft AM (today)',
+        date: today,
+        start_time: '09:00:00',
+        end_time: '11:00:00',
+        duration_minutes: 120,
+        project_id: projectAlpha,
+        status: 'draft',
+        description: 'E2E seed — draft manhã',
+      },
+      {
+        id: 'e2e00000-0000-0000-0000-000000000602',
+        label: 'Draft PM (today)',
+        date: today,
+        start_time: '14:00:00',
+        end_time: '16:00:00',
+        duration_minutes: 120,
+        project_id: projectAlpha,
+        status: 'draft',
+        description: 'E2E seed — draft tarde',
+      },
+      {
+        id: 'e2e00000-0000-0000-0000-000000000603',
+        label: 'Submitted (yesterday)',
+        date: yesterday,
+        start_time: '10:00:00',
+        end_time: '12:00:00',
+        duration_minutes: 120,
+        project_id: projectBeta,
+        status: 'submitted',
+        description: 'E2E seed — submitted',
+      },
+      {
+        id: 'e2e00000-0000-0000-0000-000000000604',
+        label: 'Approved (-2 days)',
+        date: twoDaysAgo,
+        start_time: '08:00:00',
+        end_time: '10:00:00',
+        duration_minutes: 120,
+        project_id: projectAlpha,
+        status: 'approved',
+        description: 'E2E seed — approved',
+      },
+      {
+        id: 'e2e00000-0000-0000-0000-000000000605',
+        label: 'Rejected (-3 days)',
+        date: threeDaysAgo,
+        start_time: '13:00:00',
+        end_time: '15:00:00',
+        duration_minutes: 120,
+        project_id: projectBeta,
+        status: 'rejected',
+        description: 'E2E seed — rejected',
+        rejection_reason: 'E2E seed rejection',
+      },
+    ]
+
+    for (const ts of timesheets) {
+      await ensureRow(supabase, 'timesheets', ts.id, ts.label, {
+        user_id: member.id,
+        company_id: E2E_COMPANY_ID,
+        date: ts.date,
+        start_time: ts.start_time,
+        end_time: ts.end_time,
+        duration_minutes: ts.duration_minutes,
+        project_id: ts.project_id,
+        status: ts.status,
+        description: ts.description,
+        ...(ts.rejection_reason ? { rejection_reason: ts.rejection_reason } : {}),
+      })
     }
   }
 

@@ -8,35 +8,6 @@ export interface RateResult {
   error?: string
 }
 
-// ── List ──────────────────────────────────────────────────────
-
-export async function getMemberRates(userId: string): Promise<{
-  success: boolean
-  data?: any[]
-  error?: string
-}> {
-  const membership = await getCurrentMembership()
-  if (!membership || !['admin', 'owner'].includes(membership.member.role)) {
-    return { success: false, error: 'Acesso negado.' }
-  }
-
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('member_rates')
-    .select('*')
-    .eq('company_id', membership.company.id)
-    .eq('user_id', userId)
-    .order('start_date', { ascending: false })
-
-  if (error) {
-    console.error('Failed to fetch member rates:', error)
-    return { success: false, error: 'Erro ao buscar taxas do membro.' }
-  }
-
-  return { success: true, data: data ?? [] }
-}
-
 // ── Create ────────────────────────────────────────────────────
 
 export async function createMemberRate(

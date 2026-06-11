@@ -2,10 +2,12 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentMembership } from '@/lib/supabase/membership'
+import type { Project } from '@/lib/types/database.types'
 
 export interface ProjectResult {
   success: boolean
   error?: string
+  data?: Project
 }
 
 // ── Create ────────────────────────────────────────────────────
@@ -21,7 +23,6 @@ export async function createProject(
     return { success: false, error: 'Nome do projeto é obrigatório (máx. 100 caracteres).' }
   }
 
-  // Validate code format if provided
   if (code && !/^[A-Z0-9]{1,8}$/.test(code)) {
     return { success: false, error: 'Código deve ter 1-8 caracteres alfanuméricos (A-Z, 0-9).' }
   }
@@ -35,7 +36,7 @@ export async function createProject(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Sessão expirada.' }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .insert({
       company_id: membership.company.id,
@@ -45,6 +46,8 @@ export async function createProject(
       ...(code ? { code } : {}),
       client_id: clientId || null,
     })
+    .select('*')
+    .single()
 
   if (error) {
     if (error.code === '23505') {
@@ -57,7 +60,7 @@ export async function createProject(
     return { success: false, error: 'Erro ao criar projeto.' }
   }
 
-  return { success: true }
+  return { success: true, data }
 }
 
 // ── Update ────────────────────────────────────────────────────
@@ -74,7 +77,6 @@ export async function updateProject(
     return { success: false, error: 'Nome do projeto é obrigatório (máx. 100 caracteres).' }
   }
 
-  // Validate code format if provided
   if (code && !/^[A-Z0-9]{1,8}$/.test(code)) {
     return { success: false, error: 'Código deve ter 1-8 caracteres alfanuméricos (A-Z, 0-9).' }
   }
@@ -86,7 +88,6 @@ export async function updateProject(
 
   const supabase = await createClient()
 
-  // Verify project belongs to this company
   const { data: project } = await supabase
     .from('projects')
     .select('id, company_id')
@@ -98,7 +99,7 @@ export async function updateProject(
     return { success: false, error: 'Acesso negado.' }
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .update({
       name: trimmedName,
@@ -107,6 +108,8 @@ export async function updateProject(
       client_id: clientId !== undefined ? (clientId || null) : undefined,
     })
     .eq('id', projectId)
+    .select('*')
+    .single()
 
   if (error) {
     if (error.code === '23505') {
@@ -119,7 +122,7 @@ export async function updateProject(
     return { success: false, error: 'Erro ao atualizar projeto.' }
   }
 
-  return { success: true }
+  return { success: true, data }
 }
 
 // ── Toggle active ─────────────────────────────────────────────
@@ -146,15 +149,17 @@ export async function toggleProjectActive(
     return { success: false, error: 'Acesso negado.' }
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .update({ active })
     .eq('id', projectId)
+    .select('*')
+    .single()
 
   if (error) {
     console.error('Failed to toggle project:', error)
     return { success: false, error: 'Erro ao alterar status do projeto.' }
   }
 
-  return { success: true }
+  return { success: true, data }
 }

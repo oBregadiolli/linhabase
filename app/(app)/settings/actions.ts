@@ -21,9 +21,7 @@ export async function updateProfile(formData: FormData) {
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/settings')
-  revalidatePath('/dashboard')
-  revalidatePath('/admin')
-  return { success: true }
+  return { success: true, name, phone }
 }
 
 export async function updateAvatar(avatarUrl: string | null) {
@@ -39,9 +37,7 @@ export async function updateAvatar(avatarUrl: string | null) {
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/settings')
-  revalidatePath('/dashboard')
-  revalidatePath('/admin')
-  return { success: true }
+  return { success: true, avatarUrl }
 }
 
 export async function updatePassword(currentPassword: string, newPassword: string) {

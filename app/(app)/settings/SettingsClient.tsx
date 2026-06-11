@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   User, Camera, Mail, Phone, Shield, Building2,
@@ -60,7 +59,6 @@ export default function SettingsClient({
   isAdmin,
   userEmail,
 }: SettingsClientProps) {
-  const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Profile states
@@ -168,7 +166,6 @@ export default function SettingsClient({
       if (result.success) {
         setProfileSaved(true)
         setTimeout(() => setProfileSaved(false), 3000)
-        router.refresh()
       } else {
         setProfileError(result.error ?? 'Erro ao salvar.')
       }

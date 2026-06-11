@@ -14,6 +14,7 @@
  *   in the same RSC render tree.
  */
 
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type { CompanyMember, Company } from '@/lib/types/database.types'
 
@@ -33,7 +34,7 @@ export interface Membership {
  * the first active membership found. This is sufficient for Phase 2
  * where each user has at most one company.
  */
-export async function getCurrentMembership(): Promise<Membership | null> {
+export const getCurrentMembership = cache(async function getCurrentMembership(): Promise<Membership | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -67,7 +68,7 @@ export async function getCurrentMembership(): Promise<Membership | null> {
   if (!company) return null
 
   return { member, company }
-}
+})
 
 // ── getCurrentCompany ─────────────────────────────────────────
 /**

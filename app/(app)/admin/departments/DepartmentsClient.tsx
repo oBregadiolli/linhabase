@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Network, Users, UserCheck, Plus, Pencil, Power, PowerOff,
@@ -9,7 +9,7 @@ import {
 import { cn } from '@/lib/utils'
 import {
   createDepartment, updateDepartment, toggleDepartmentActive,
-  createTeam, updateTeam, toggleTeamActive
+  createTeam, updateTeam, toggleTeamActive, getDepartmentsWithTeams
 } from './actions'
 
 // ── Local types ───────────────────────────────────────────────
@@ -41,10 +41,15 @@ interface DepartmentsClientProps {
   embedded?: boolean
 }
 
-export default function DepartmentsClient({ companyName, departments, embedded }: DepartmentsClientProps) {
+export default function DepartmentsClient({ companyName, departments: initialDepartments, embedded }: DepartmentsClientProps) {
   const router = useRouter()
+  const [deptList, setDeptList] = useState(initialDepartments)
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    setDeptList(initialDepartments)
+  }, [initialDepartments])
 
   // Department modal state
   const [showDeptModal, setShowDeptModal] = useState(false)
@@ -55,14 +60,14 @@ export default function DepartmentsClient({ companyName, departments, embedded }
   const [editingTeam, setEditingTeam] = useState<{ team?: Team; departmentId: string; departmentName: string } | null>(null)
 
   // Stats
-  const totalDepartments = departments.length
-  const totalTeams = departments.reduce((sum, d) => sum + d.teams.length, 0)
-  const totalMembers = departments.reduce(
+  const totalDepartments = deptList.length
+  const totalTeams = deptList.reduce((sum, d) => sum + d.teams.length, 0)
+  const totalMembers = deptList.reduce(
     (sum, d) => sum + d.teams.reduce((tSum, t) => tSum + t.member_count, 0), 0
   )
 
   // Filtered departments
-  const filteredDepartments = departments.filter(d => {
+  const filteredDepartments = deptList.filter(d => {
     if (search === '') return true
     const q = search.toLowerCase()
     return (
@@ -81,12 +86,17 @@ export default function DepartmentsClient({ companyName, departments, embedded }
     })
   }
 
-  function handleRefresh() {
+  async function handleRefresh() {
     setShowDeptModal(false)
     setEditingDept(null)
     setShowTeamModal(false)
     setEditingTeam(null)
-    router.refresh()
+    if (embedded) {
+      const result = await getDepartmentsWithTeams()
+      if (result.success && result.data) setDeptList(result.data)
+    } else {
+      router.refresh()
+    }
   }
 
   function openCreateTeam(departmentId: string, departmentName: string) {
